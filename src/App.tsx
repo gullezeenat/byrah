@@ -78,7 +78,7 @@ type CheckoutValues = {
 type Navigate = (href: string) => void;
 type SortOption = "Featured" | "Price: Low to High" | "Price: High to Low" | "Newest";
 
-const SHIPPING_FEE = 350;
+const SHIPPING_FEE = 250;
 const FREE_SHIPPING_THRESHOLD = 5000;
 
 function usePersistentState<T>(key: string, initialValue: T) {
@@ -150,7 +150,7 @@ function App() {
 
   useEffect(() => {
     const description =
-      "Thoughtful hijabs, timeless chaddars and considered gifts. Discover the RAH. edit, modest fashion made meaningful.";
+      "Thoughtful hijabs, timeless chaddars and considered gifts. Discover By RAH. edit, modest fashion made meaningful.";
     document.title = "RAH. — Modesty by RAH";
     let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     if (!meta) {
@@ -808,7 +808,7 @@ function HomePage({
       <section className="section featured-section">
         <div className="section-heading section-heading-split">
           <div>
-            <h2>The RAH. Edit</h2>
+            <h2>By RAH. Edit</h2>
             <p className="section-description">Thoughtfully selected pieces for everyday elegance.</p>
           </div>
           <StoreLink className="underlined-link" href="/shop" navigate={navigate}>
@@ -1139,7 +1139,7 @@ function ProductListingPage({
       <div className="page-shell">
       <Breadcrumbs items={[{ label: "Home", href: "/" }, ...(parent ? [parent] : []), { label: title }]} navigate={navigate} />
       <div className="listing-intro">
-        <p className="eyebrow">THE RAH. COLLECTION</p>
+        <p className="eyebrow">By RAH. COLLECTION</p>
         <h1>{title}</h1>
         <p>{description}</p>
         {query && <span className="search-query-note">Search: “{query}”</span>}
@@ -2221,7 +2221,7 @@ function NotFoundPage({ navigate }: { navigate: Navigate }) {
     <main className="page-shell not-found-page">
       <p className="eyebrow">A TURN IN THE WRONG DIRECTION</p>
       <h1>We could not find that page.</h1>
-      <p>Let us take you back to the RAH. edit.</p>
+      <p>Let us take you back to By RAH. edit.</p>
       <StoreLink className="button button-dark" href="/" navigate={navigate}>Return home <ArrowRight size={16} /></StoreLink>
     </main>
   );
@@ -2233,7 +2233,7 @@ function Footer({ navigate }: { navigate: Navigate }) {
       <div className="footer-main">
         <div className="footer-brand-column">
           <StoreLink href="/" navigate={navigate} className="wordmark footer-wordmark">
-            <img className="wordmark-logo" src={imageLibrary.logoDark} alt="RAH. — Modesty by RAH" />
+            <img className="wordmark-logo" src={imageLibrary.logoDark} alt="By RAH. — Modesty by RAH" />
           </StoreLink>
           <SocialIconRow className="footer-social-row" />
         </div>
