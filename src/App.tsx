@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -38,6 +39,7 @@ import {
 } from "lucide-react";
 import {
   collections,
+  getStock,
   formatPrice,
   imageLibrary,
   navigationLinks,
@@ -45,7 +47,6 @@ import {
   subCategories,
   getBundleOptions,
   BUNDLE_MIN,
-  BUNDLE_MAX,
   type BundleOption,
   socialLinks,
   type Collection,
@@ -78,7 +79,7 @@ type CheckoutValues = {
 type Navigate = (href: string) => void;
 type SortOption = "Featured" | "Price: Low to High" | "Price: High to Low" | "Newest";
 
-const SHIPPING_FEE = 250;
+const SHIPPING_FEE = 300;
 const FREE_SHIPPING_THRESHOLD = 5000;
 
 function usePersistentState<T>(key: string, initialValue: T) {
@@ -138,6 +139,16 @@ function App() {
   };
 
   useEffect(() => {
+    // Route changes should always open at the top, after the new page has rendered.
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.style.scrollBehavior = "";
+    });
+  }, [location.pathname]);
+
+  useEffect(() => {
     const handlePopState = () => {
       setLocation({ pathname: window.location.pathname, search: window.location.search });
       setMenuOpen(false);
@@ -150,7 +161,7 @@ function App() {
 
   useEffect(() => {
     const description =
-      "Thoughtful hijabs, timeless chaddars and considered gifts. Discover By RAH. edit, modest fashion made meaningful.";
+      "Thoughtful hijabs, timeless chaddars and considered gifts. Discover BY RAH. Edit, modest fashion made meaningful.";
     document.title = "RAH. — Modesty by RAH";
     let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     if (!meta) {
@@ -182,8 +193,9 @@ function App() {
   ) => {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
-    if (product.stock < 1) {
-      notify("This piece is currently sold out.");
+    const available = getStock(product, color);
+    if (available < 1) {
+      notify("This piece is out of stock.");
       return;
     }
     setCart((current) => {
@@ -193,11 +205,11 @@ function App() {
       if (existing) {
         return current.map((item) =>
           item === existing
-            ? { ...item, quantity: Math.min(item.quantity + quantity, product.stock) }
+            ? { ...item, quantity: Math.min(item.quantity + quantity, available) }
             : item,
         );
       }
-      return [...current, { productId, color, size: size || undefined, quantity: Math.min(quantity, product.stock) }];
+      return [...current, { productId, color, size: size || undefined, quantity: Math.min(quantity, available) }];
     });
     setCartOpen(true);
     notify(`${product.name} added to your bag.`);
@@ -209,10 +221,11 @@ function App() {
       let next = [...current];
       picks.forEach(({ productId, color }) => {
         const product = products.find((item) => item.id === productId);
-        if (!product || product.stock < 1) return;
+        const available = product ? getStock(product, color) : 0;
+        if (!product || available < 1) return;
         const existing = next.find((item) => item.productId === productId && item.color === color && !item.size && item.unitPrice === unitPrice);
         if (existing) {
-          next = next.map((item) => (item === existing ? { ...item, quantity: Math.min(item.quantity + 1, product.stock) } : item));
+          next = next.map((item) => (item === existing ? { ...item, quantity: Math.min(item.quantity + 1, available) } : item));
         } else {
           next = [...next, { productId, color, quantity: 1, ...(unitPrice ? { unitPrice } : {}) }];
         }
@@ -232,7 +245,7 @@ function App() {
         }
         const nextQuantity = item.quantity + amount;
         if (nextQuantity < 1) return [];
-        return [{ ...item, quantity: Math.min(nextQuantity, product?.stock ?? nextQuantity) }];
+        return [{ ...item, quantity: Math.min(nextQuantity, product ? getStock(product, line.color) : nextQuantity) }];
       }),
     );
   };
@@ -290,10 +303,15 @@ function App() {
   const baseCollectionSlug = location.pathname.startsWith("/collections/")
     ? location.pathname.split("/")[2]
     : "";
-  const subCategorySlug = baseCollectionSlug && location.pathname.split("/")[3] ? location.pathname.split("/")[3] : "";
-  const activeSubCategory = subCategorySlug
+  const pathParts = location.pathname.split("/");
+  const subCategorySlug = baseCollectionSlug && pathParts[3] ? pathParts[3] : "";
+  const parentSubCategory = subCategorySlug
     ? subCategories[baseCollectionSlug]?.find((item) => item.slug === subCategorySlug)
     : undefined;
+  const childSlug = baseCollectionSlug && pathParts[4] ? pathParts[4] : "";
+  const activeSubCategory = childSlug
+    ? parentSubCategory?.children?.find((item) => item.slug === childSlug)
+    : parentSubCategory;
   const searchQuery = params.get("q") || "";
 
   let page: ReactNode;
@@ -312,19 +330,33 @@ function App() {
     const meta = getCollectionMeta(baseCollectionSlug);
     let baseProducts = [...products];
     if (baseCollectionSlug === "hijabs") baseProducts = baseProducts.filter((item) => item.category === "Hijabs");
+    else if (baseCollectionSlug === "chiffon-georgette") baseProducts = baseProducts.filter((item) => item.subcategory === "Chiffon Georgette");
+    else if (baseCollectionSlug === "soft-crinkle-crimps") baseProducts = baseProducts.filter((item) => item.subcategory === "Soft Crinkle Crimps");
     else if (baseCollectionSlug) {
       baseProducts = baseProducts.filter((item) => item.collections.includes(baseCollectionSlug));
     }
-    if (activeSubCategory) baseProducts = baseProducts.filter((item) => item.subcategory === activeSubCategory.label);
+    if (activeSubCategory) {
+      const labels = activeSubCategory.children ? activeSubCategory.children.map((child) => child.label) : [activeSubCategory.label];
+      baseProducts = baseProducts.filter((item) => !!item.subcategory && labels.includes(item.subcategory));
+    }
     if (isSearch) baseProducts = [...products];
     const newOnly = params.get("new") === "true";
     const requestedSort = params.get("sort") as SortOption | null;
     const validSorts: SortOption[] = ["Featured", "Price: Low to High", "Price: High to Low", "Newest"];
-    page = (
+    page = isShop ? (
+      <AllCollectionsPage navigate={navigate} wishlist={wishlist} onWishlist={toggleWishlist} onAdd={addToCart} />
+    ) : (
       <ProductListingPage
         key={`${location.pathname}${location.search}`}
         title={isSearch ? "Search results" : isShop ? "Shop all" : activeSubCategory ? activeSubCategory.label : meta.title}
-        parent={!isSearch && !isShop && activeSubCategory ? { label: meta.title, href: `/collections/${baseCollectionSlug}` } : undefined}
+        parent={
+          !isSearch && !isShop && activeSubCategory
+            ? [
+                { label: meta.title, href: `/collections/${baseCollectionSlug}` },
+                ...(childSlug && parentSubCategory ? [{ label: parentSubCategory.label, href: `/collections/${baseCollectionSlug}/${parentSubCategory.slug}` }] : []),
+              ]
+            : undefined
+        }
         description={
           isSearch
             ? searchQuery
@@ -462,6 +494,21 @@ function getCollectionMeta(slug: string): Collection {
       description: "Soft, considered layers in colours you will come back to.",
       image: imageLibrary.georgette,
     },
+    bundles: {
+      title: "Hijab Bundles",
+      description: "Build your own considered pairings in the colours you love.",
+      image: imageLibrary.bundles,
+    },
+    hampers: {
+      title: "Hampers",
+      description: "Thoughtful gifts for meaningful moments.",
+      image: imageLibrary.hampers,
+    },
+    "large-dubatta": {
+      title: "Large Dubatta",
+      description: "Extra coverage and a comfortable drape, made for everyday ease.",
+      image: "/images/products/large-dubatta/large-dubatta-black.jpg",
+    },
   };
   const content = labels[slug] || {
     title: "Shop all",
@@ -473,10 +520,14 @@ function getCollectionMeta(slug: string): Collection {
 
 function AnnouncementBar() {
   return (
-    <div className="announcement-bar">
-      <span>Delivery Nationwide</span>
-      <span className="announcement-dot" aria-hidden="true">•</span>
-      <span>Thoughtfully Packed with Care</span>
+    <div className="announcement-bar" role="region" aria-label="Store announcements">
+      <div className="announcement-track">
+        {[0, 1].map((copy) => (
+          <p className="announcement-text" key={copy} aria-hidden={copy === 1}>
+            {SHIPPING_FEE}/- DELIVERY CHARGES ALL OVER PAKISTAN <span className="announcement-dot">•</span> EASY EXCHANGE POLICY <span className="announcement-dot">•</span> DISCOUNTED BUNDLES AVAILABLE <span className="announcement-dot">•</span>
+          </p>
+        ))}
+      </div>
     </div>
   );
 }
@@ -544,7 +595,12 @@ function Header({
               </StoreLink>
               <div className="nav-dropdown">
                 {subs.map((sub) => (
-                  <StoreLink key={sub.slug} href={`${link.href}/${sub.slug}`} navigate={navigate}>{sub.label}</StoreLink>
+                  <Fragment key={sub.slug}>
+                    <StoreLink href={`${link.href}/${sub.slug}`} navigate={navigate} className={sub.children ? "nav-sub-parent" : ""}>{sub.label}</StoreLink>
+                    {sub.children?.map((child) => (
+                      <StoreLink key={child.slug} href={`${link.href}/${sub.slug}/${child.slug}`} navigate={navigate} className="nav-sub-child">{child.label}</StoreLink>
+                    ))}
+                  </Fragment>
                 ))}
               </div>
             </div>
@@ -608,8 +664,11 @@ function MobileMenu({ open, onClose, navigate, wishlistCount }: { open: boolean;
       return () => window.clearTimeout(timer);
     }
   }, [open]);
-  const panelLink = panel ? navigationLinks.find((link) => linkKey(link.href) === panel) : undefined;
-  const panelSubs = panel ? subCategories[panel] : undefined;
+  const panelParts = panel ? panel.split("/") : [];
+  const panelLink = panel ? navigationLinks.find((link) => linkKey(link.href) === panelParts[0]) : undefined;
+  const panelParent = panelParts[1] ? subCategories[panelParts[0]]?.find((sub) => sub.slug === panelParts[1]) : undefined;
+  const panelSubs = panel ? (panelParent ? panelParent.children : subCategories[panelParts[0]]) : undefined;
+  const panelBase = panelLink ? (panelParent ? `${panelLink.href}/${panelParent.slug}` : panelLink.href) : "";
   useEffect(() => {
     if (!open) return;
     const handleKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -631,17 +690,24 @@ function MobileMenu({ open, onClose, navigate, wishlistCount }: { open: boolean;
         </div>
         {panelLink && panelSubs ? (
           <div className="mobile-menu-links mobile-submenu" key={`sub-${panel}`}>
-            <button type="button" className="submenu-back" onClick={() => setPanel(null)}>
-              <ChevronLeft size={17} strokeWidth={1.6} aria-hidden="true" /> Menu
+            <button type="button" className="submenu-back" onClick={() => setPanel(panelParent ? panelParts[0] : null)}>
+              <ChevronLeft size={17} strokeWidth={1.6} aria-hidden="true" /> {panelParent ? panelLink.label : "Menu"}
             </button>
-            <StoreLink href={panelLink.href} navigate={navigate} onClick={onClose} className="submenu-all">
-              <span>All {panelLink.label}</span>
+            <StoreLink href={panelBase} navigate={navigate} onClick={onClose} className="submenu-all">
+              <span>All {panelParent ? panelParent.label : panelLink.label}</span>
             </StoreLink>
-            {panelSubs.map((sub) => (
-              <StoreLink key={sub.slug} href={`${panelLink.href}/${sub.slug}`} navigate={navigate} onClick={onClose}>
-                <span>{sub.label}</span>
-              </StoreLink>
-            ))}
+            {panelSubs.map((sub) =>
+              sub.children ? (
+                <button key={sub.slug} type="button" className="menu-parent" onClick={() => setPanel(`${panelParts[0]}/${sub.slug}`)} aria-haspopup="true">
+                  <span>{sub.label}</span>
+                  <ChevronRight size={17} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              ) : (
+                <StoreLink key={sub.slug} href={`${panelBase}/${sub.slug}`} navigate={navigate} onClick={onClose}>
+                  <span>{sub.label}</span>
+                </StoreLink>
+              ),
+            )}
           </div>
         ) : (
           <div className="mobile-menu-links" key="main">
@@ -793,10 +859,10 @@ function HomePage({
         <div className="section-heading section-heading-split">
           <div>
             <p className="eyebrow">THE COLLECTIONS</p>
-            <h2>Shop by Collections</h2>
+            <h2>Shop by Collection</h2>
           </div>
           <StoreLink className="underlined-link" href="/shop" navigate={navigate}>
-            View everything <ArrowRight size={16} />
+            View Everything <ArrowRight size={16} />
           </StoreLink>
         </div>
         <div className="collection-grid">
@@ -808,7 +874,7 @@ function HomePage({
       <section className="section featured-section">
         <div className="section-heading section-heading-split">
           <div>
-            <h2>By RAH. Edit</h2>
+            <h2>BY RAH. Edit</h2>
             <p className="section-description">Thoughtfully selected pieces for everyday elegance.</p>
           </div>
           <StoreLink className="underlined-link" href="/shop" navigate={navigate}>
@@ -816,7 +882,7 @@ function HomePage({
           </StoreLink>
         </div>
         <ProductGrid
-          items={products.slice(0, 6)}
+          items={products.filter((item) => item.bundleOf || item.subcategory === "Vintage Leopard")}
           navigate={navigate}
           wishlist={wishlist}
           onWishlist={onWishlist}
@@ -848,10 +914,10 @@ function HeroSection() {
 
 function ServiceHighlights() {
   const items = [
-    { icon: Truck, title: "Fast Delivery", detail: "Nationwide shipping" },
-    { icon: Gift, title: "Gift Packaging", detail: "Premium wrap" },
+    { icon: Package, title: "Fast Delivery", detail: "3–7 Days" },
+    { icon: Gift, title: "Gift Packaging", detail: "Premium Wrap" },
     { icon: CreditCard, title: "Cash on Delivery", detail: "Available" },
-    { icon: RotateCcw, title: "Easy Exchange", detail: "7-day exchange policy" },
+    { icon: RotateCcw, title: "Easy Exchange", detail: "7 Days Policy" },
   ];
   return (
     <section className="service-section" aria-label="Shopping services">
@@ -945,10 +1011,10 @@ function ProductCard({
       <div className="product-card-image-wrap">
         <StoreLink href={`/products/${product.slug}`} navigate={navigate} className="product-image-link" aria-label={`View ${product.name}`}>
           <StoreImage src={product.images[0]} alt={product.name} />
+          {product.stock < 1 && <span className="sold-out-badge">Out of stock</span>}
         </StoreLink>
       </div>
       <StoreLink href={`/products/${product.slug}`} navigate={navigate} className="product-card-info">
-        <span className="product-category">{product.category}</span>
         <h3>{product.name}</h3>
         <div className="product-price-row">
           <span>{product.bundleOf ? "2 pieces from " : ""}{formatPrice(product.price)}</span>
@@ -979,7 +1045,7 @@ function PromotionalBanner({ navigate }: { navigate: Navigate }) {
         </StoreLink>
       </div>
       <div className="promo-image-wrap">
-        <StoreImage src={imageLibrary.gift} alt="Thoughtfully arranged gift set" />
+        <StoreImage src={imageLibrary.hampers} alt="Thoughtfully arranged gift hamper" />
       </div>
     </section>
   );
@@ -1077,6 +1143,36 @@ function NewsletterForm() {
   );
 }
 
+function AllCollectionsPage({ navigate, wishlist, onWishlist, onAdd }: { navigate: Navigate; wishlist: string[]; onWishlist: (id: string) => void; onAdd: (id: string, color?: string, size?: string, quantity?: number) => void }) {
+  const groupedCategories = ["Hijabs", "Irani Chaddar", "Accessories", "Large Dubatta", "Bundles", "Hampers"];
+  return (
+    <main className="listing-page all-collections-page">
+      <div className="page-shell">
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "View Everything" }]} navigate={navigate} />
+        <div className="listing-intro"><p className="eyebrow">BY RAH. COLLECTION</p><h1>Shop Everything</h1><p>Explore every RAH. category, collection and carefully selected piece.</p></div>
+      </div>
+      <div className="page-shell all-collections-content">
+        {groupedCategories.map((category) => {
+          const categoryProducts = products.filter((product) => product.category === category);
+          if (!categoryProducts.length) return null;
+          const subs = (category === "Hijabs" ? subCategories.hijabs : category === "Accessories" ? subCategories.accessories : []).flatMap((sub) =>
+            sub.children ? sub.children.map((child) => ({ ...child, heading: `${sub.label} · ${child.label}` })) : [{ ...sub, heading: sub.label }],
+          );
+          return (
+            <section className="all-collection-category" key={category}>
+              <div className="section-heading"><p className="eyebrow">EXPLORE BY CATEGORY</p><h2>{category}</h2></div>
+              {subs.length ? subs.map((sub) => {
+                const items = categoryProducts.filter((product) => product.subcategory === sub.label);
+                return items.length ? <div className="all-collection-subcategory" key={sub.slug}><h3>{sub.heading}</h3><ProductGrid items={items} navigate={navigate} wishlist={wishlist} onWishlist={onWishlist} onAdd={onAdd} /></div> : null;
+              }) : <ProductGrid items={categoryProducts} navigate={navigate} wishlist={wishlist} onWishlist={onWishlist} onAdd={onAdd} />}
+            </section>
+          );
+        })}
+      </div>
+    </main>
+  );
+}
+
 function ProductListingPage({
   title,
   parent,
@@ -1092,7 +1188,7 @@ function ProductListingPage({
   onAdd,
 }: {
   title: string;
-  parent?: { label: string; href: string };
+  parent?: { label: string; href: string }[];
   description: string;
   products: Product[];
   query: string;
@@ -1137,9 +1233,9 @@ function ProductListingPage({
   return (
     <main className="listing-page">
       <div className="page-shell">
-      <Breadcrumbs items={[{ label: "Home", href: "/" }, ...(parent ? [parent] : []), { label: title }]} navigate={navigate} />
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, ...(parent || []), { label: title }]} navigate={navigate} />
       <div className="listing-intro">
-        <p className="eyebrow">By RAH. COLLECTION</p>
+        <p className="eyebrow">BY RAH. COLLECTION</p>
         <h1>{title}</h1>
         <p>{description}</p>
         {query && <span className="search-query-note">Search: “{query}”</span>}
@@ -1300,11 +1396,13 @@ function ProductDetailPage({
   wishlist: string[];
 }) {
   const [imageIndex, setImageIndex] = useState(0);
-  const related = products.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 3);
+  const related = [...products.filter((item) => item.id !== product.id && item.category === product.category)]
+    .sort((x, y) => Number(y.subcategory === product.subcategory) - Number(x.subcategory === product.subcategory))
+    .slice(0, 3);
 
   return (
     <main className="product-page page-shell">
-      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: product.category, href: `/collections/${categorySlug(product.category)}` }, { label: product.name }]} navigate={navigate} />
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: product.name }]} navigate={navigate} />
       <div className="product-detail-layout">
         <ProductGallery product={product} imageIndex={imageIndex} setImageIndex={setImageIndex} />
         {product.bundleOf ? (
@@ -1361,21 +1459,23 @@ function ProductInfo({
   onShare: () => void;
   onColorChange?: (color: string) => void;
 }) {
-  const [selectedColor, setSelectedColor] = useState(product.colors?.[0]?.name || "One size");
+  const [selectedColor, setSelectedColor] = useState(
+    (product.colors?.find((color) => getStock(product, color.name) > 0) || product.colors?.[0])?.name || "One size",
+  );
+  const stock = getStock(product, selectedColor === "One size" ? undefined : selectedColor);
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] || "");
   const [quantity, setQuantity] = useState(1);
   const addProduct = () => onAdd(product.id, selectedColor, selectedSize, quantity);
 
   return (
     <div className="product-info">
-      <p className="eyebrow">{product.collection.toUpperCase()}</p>
       <h1>{product.name}</h1>
       <div className="detail-price-row">
         <span className="detail-price">{formatPrice(product.price)}</span>
       </div>
-      <p className={`stock-message ${product.stock < 1 ? "sold-out" : ""}`}>
-        <span aria-hidden="true" />{product.stock < 1 ? "Currently sold out" : `${product.stock} in stock`}
-      </p>
+      {stock < 1 && (
+        <p className="stock-message sold-out"><span aria-hidden="true" />Out of stock</p>
+      )}
       {product.colors && (
         <fieldset className="variant-fieldset">
           <legend>Colour <span>{selectedColor}</span></legend>
@@ -1384,12 +1484,12 @@ function ProductInfo({
               <button
                 key={color.name}
                 type="button"
-                className={`color-choice ${selectedColor === color.name ? "is-selected" : ""}`}
+                className={`color-choice ${selectedColor === color.name ? "is-selected" : ""} ${getStock(product, color.name) < 1 ? "is-soldout" : ""}`}
                 style={{ "--swatch": color.hex } as CSSProperties}
-                onClick={() => { setSelectedColor(color.name); onColorChange?.(color.name); }}
-                aria-label={`Choose ${color.name}`}
+                onClick={() => { setSelectedColor(color.name); setQuantity(1); onColorChange?.(color.name); }}
+                aria-label={`Choose ${color.name}${getStock(product, color.name) < 1 ? " (out of stock)" : ""}`}
                 aria-pressed={selectedColor === color.name}
-                title={color.name}
+                title={getStock(product, color.name) < 1 ? `${color.name} - out of stock` : color.name}
               >
                 <span />
               </button>
@@ -1411,13 +1511,13 @@ function ProductInfo({
       <div className="quantity-control" aria-label="Select quantity">
         <button type="button" aria-label="Decrease quantity" disabled={quantity <= 1} onClick={() => setQuantity((value) => Math.max(1, value - 1))}><Minus size={15} /></button>
         <span aria-live="polite">{quantity}</span>
-        <button type="button" aria-label="Increase quantity" disabled={quantity >= product.stock} onClick={() => setQuantity((value) => Math.min(product.stock, value + 1))}><Plus size={15} /></button>
+        <button type="button" aria-label="Increase quantity" disabled={quantity >= stock} onClick={() => setQuantity((value) => Math.min(stock, value + 1))}><Plus size={15} /></button>
       </div>
       <div className="product-actions">
-        <button type="button" className="button button-outline button-full" onClick={addProduct} disabled={product.stock < 1}>
-          <ShoppingBag size={17} /> Add to bag
+        <button type="button" className="button button-outline button-full" onClick={addProduct} disabled={stock < 1}>
+          {stock < 1 ? "Out of stock" : "Add to cart"}
         </button>
-        <button type="button" className="button button-dark button-full" onClick={addProduct} disabled={product.stock < 1}>
+        <button type="button" className="button button-dark button-full" onClick={addProduct} disabled={stock < 1}>
           Buy it now <ArrowRight size={16} />
         </button>
       </div>
@@ -1455,17 +1555,24 @@ function BundleBuilder({
   onColorChange: (color: string) => void;
 }) {
   const options = useMemo(() => getBundleOptions(product.bundleOf || ""), [product.bundleOf]);
-  const [count, setCount] = useState(BUNDLE_MIN);
-  const [picks, setPicks] = useState<(BundleOption | null)[]>(() => Array(BUNDLE_MIN).fill(null));
+  const availableCounts = Object.keys(product.bundlePrices || {}).map(Number).sort((a, b) => a - b);
+  const initialCount = availableCounts[0] || BUNDLE_MIN;
+  const [count, setCount] = useState(initialCount);
+  const [picks, setPicks] = useState<(BundleOption | null)[]>(() => Array(initialCount).fill(null));
   const [active, setActive] = useState(0);
-  const counts = Array.from({ length: BUNDLE_MAX - BUNDLE_MIN + 1 }, (_, index) => BUNDLE_MIN + index);
+  const counts = availableCounts;
 
   const chooseCount = (next: number) => {
     setCount(next);
     setPicks((current) => Array.from({ length: next }, (_, index) => current[index] ?? null));
     setActive((current) => Math.min(current, next - 1));
   };
+  const totalAvailable = options.reduce((sum, option) => sum + option.stock, 0);
+  const usedElsewhere = (option: BundleOption) =>
+    picks.filter((pick, index) => index !== active && pick?.productId === option.productId && pick.color === option.color).length;
+  const unavailable = (option: BundleOption) => option.stock < 1 || usedElsewhere(option) >= option.stock;
   const choose = (option: BundleOption) => {
+    if (unavailable(option)) return;
     const next = [...picks];
     next[active] = option;
     setPicks(next);
@@ -1482,7 +1589,6 @@ function BundleBuilder({
 
   return (
     <div className="product-info bundle-builder">
-      <p className="eyebrow">{product.collection.toUpperCase()}</p>
       <h1>{product.name}</h1>
       <div className="detail-price-row">
         <span className="detail-price">{formatPrice(tierPrice)}</span>
@@ -1493,7 +1599,7 @@ function BundleBuilder({
         <legend>Number of pieces <span>{count}</span></legend>
         <div className="bundle-count">
           {counts.map((number) => (
-            <button key={number} type="button" className={count === number ? "is-selected" : ""} aria-pressed={count === number} onClick={() => chooseCount(number)}>{number}</button>
+            <button key={number} type="button" disabled={number > totalAvailable} className={count === number ? "is-selected" : ""} aria-pressed={count === number} onClick={() => chooseCount(number)}>{number}</button>
           ))}
         </div>
       </fieldset>
@@ -1504,12 +1610,13 @@ function BundleBuilder({
             <button
               key={`${option.productId}-${option.color}`}
               type="button"
-              className={`color-choice ${activePick?.productId === option.productId && activePick?.color === option.color ? "is-selected" : ""}`}
+              className={`color-choice ${activePick?.productId === option.productId && activePick?.color === option.color ? "is-selected" : ""} ${unavailable(option) ? "is-soldout" : ""}`}
+              disabled={unavailable(option)}
               style={{ "--swatch": option.hex } as CSSProperties}
               onClick={() => choose(option)}
               onMouseEnter={() => onColorChange(option.color)}
-              aria-label={`Choose ${option.color} for piece ${active + 1}`}
-              title={option.color}
+              aria-label={`Choose ${option.color} for piece ${active + 1}${unavailable(option) ? " (out of stock)" : ""}`}
+              title={unavailable(option) ? `${option.color} - out of stock` : option.color}
             >
               <span />
             </button>
@@ -1554,13 +1661,24 @@ function BundleBuilder({
 }
 
 function RichDescription({ text }: { text: string }) {
+  const renderLine = (line: string) => {
+    const normalized = line.replace(/^([^:*]{2,45})\s*:/, "*$1*:");
+    return normalized.split(/(\*[^*]+\*)/g).map((part, i) =>
+      part.startsWith("*") && part.endsWith("*") && part.length > 2 ? <strong key={i}>{part.slice(1, -1)}</strong> : part,
+    );
+  };
+  // Paragraphs follow the blank lines written in the product description; lines inside a paragraph stay together.
+  const blocks = text
+    .split(/\n\s*\n/)
+    .map((block) => block.split("\n").map((line) => line.trim()).filter(Boolean))
+    .filter((lines) => lines.length);
   return (
     <div className="rich-description">
-      {text.split("\n").filter((line) => line.trim()).map((line, index) => (
+      {blocks.map((lines, index) => (
         <p key={index}>
-          {line.split(/(\*[^*]+\*)/g).map((part, i) =>
-            part.startsWith("*") && part.endsWith("*") && part.length > 2 ? <strong key={i}>{part.slice(1, -1)}</strong> : part,
-          )}
+          {lines.map((line, lineIndex) => (
+            <span key={lineIndex}>{lineIndex > 0 && <br />}{renderLine(line)}</span>
+          ))}
         </p>
       ))}
     </div>
@@ -1609,28 +1727,33 @@ function ProductGallery({
 }
 
 function DeliveryTimeline() {
-  const formatDate = (offset: number) => {
+  const dayLabel = (offset: number) => {
     const date = new Date();
     date.setDate(date.getDate() + offset);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return date;
+  };
+  const month = (date: Date) => date.toLocaleDateString("en-US", { month: "short" });
+  const day = (date: Date) => String(date.getDate()).padStart(2, "0");
+  const single = (offset: number) => `${month(dayLabel(offset))} ${day(dayLabel(offset))}`;
+  const range = (from: number, to: number) => {
+    const start = dayLabel(from);
+    const end = dayLabel(to);
+    return month(start) === month(end) ? `${month(start)} ${day(start)} - ${day(end)}` : `${month(start)} ${day(start)} - ${month(end)} ${day(end)}`;
   };
   return (
-    <section className="delivery-timeline" aria-label="Illustrative estimated delivery timeline">
-      <div className="timeline-step">
-        <span className="timeline-icon"><ShoppingBag size={22} strokeWidth={1.5} /></span>
-        <strong>Purchased</strong><span>{formatDate(0)} · Day 1</span>
+    <section className="delivery-timeline tl" aria-label="Estimated delivery timeline">
+      <div className="tl-icons">
+        <span className="tl-icon"><ShoppingBag size={44} strokeWidth={1.3} /></span>
+        <span className="tl-line" aria-hidden="true" />
+        <span className="tl-icon"><Truck size={44} strokeWidth={1.3} /></span>
+        <span className="tl-line" aria-hidden="true" />
+        <span className="tl-icon"><MapPin size={44} strokeWidth={1.3} /></span>
       </div>
-      <span className="timeline-connector" aria-hidden="true" />
-      <div className="timeline-step">
-        <span className="timeline-icon"><Package size={23} strokeWidth={1.5} /></span>
-        <strong>Processing</strong><span>{formatDate(0)}–{formatDate(2)} · Days 1–2</span>
+      <div className="tl-labels">
+        <div><strong>Purchased</strong><span>{single(0)}</span></div>
+        <div><strong>Processing</strong><span>{range(0, 2)}</span></div>
+        <div><strong>Delivered</strong><span>{range(3, 7)}</span></div>
       </div>
-      <span className="timeline-connector" aria-hidden="true" />
-      <div className="timeline-step">
-        <span className="timeline-icon"><MapPin size={23} strokeWidth={1.5} /></span>
-        <strong>Delivered</strong><span>{formatDate(3)}–{formatDate(7)} · Days 3–7</span>
-      </div>
-      <p className="timeline-disclaimer">Delivery dates are estimates and may vary by location.</p>
     </section>
   );
 }
@@ -1738,7 +1861,7 @@ function CartItem({
           <div className="quantity-control compact" aria-label={`Quantity for ${line.product.name}`}>
             <button type="button" aria-label="Decrease quantity" onClick={() => onQuantityChange(line, -1)}><Minus size={13} /></button>
             <span>{line.quantity}</span>
-            <button type="button" aria-label="Increase quantity" disabled={line.quantity >= line.product.stock} onClick={() => onQuantityChange(line, 1)}><Plus size={13} /></button>
+            <button type="button" aria-label="Increase quantity" disabled={line.quantity >= getStock(line.product, line.color)} onClick={() => onQuantityChange(line, 1)}><Plus size={13} /></button>
           </div>
           <strong>{formatPrice(linePrice(line) * line.quantity)}</strong>
         </div>
@@ -1747,7 +1870,7 @@ function CartItem({
         <div className="quantity-control compact" aria-label={`Quantity for ${line.product.name}`}>
           <button type="button" aria-label="Decrease quantity" onClick={() => onQuantityChange(line, -1)}><Minus size={13} /></button>
           <span>{line.quantity}</span>
-          <button type="button" aria-label="Increase quantity" disabled={line.quantity >= line.product.stock} onClick={() => onQuantityChange(line, 1)}><Plus size={13} /></button>
+          <button type="button" aria-label="Increase quantity" disabled={line.quantity >= getStock(line.product, line.color)} onClick={() => onQuantityChange(line, 1)}><Plus size={13} /></button>
         </div>
       </div>
       <strong className="cart-item-total">{formatPrice(linePrice(line) * line.quantity)}</strong>
@@ -1774,8 +1897,8 @@ function OrderSummary({
       <p className="eyebrow">YOUR ORDER</p>
       <h2>Summary</h2>
       <div className="summary-line"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div>
-      <div className="summary-line"><span>Shipping</span><span>{shipping ? formatPrice(shipping) : subtotal ? "Complimentary" : "—"}</span></div>
-      <p className="shipping-rule">PKR {SHIPPING_FEE} shipping under {formatPrice(FREE_SHIPPING_THRESHOLD)}; complimentary at or above.</p>
+      <div className="summary-line"><span>Delivery Charges (DC)</span><span>{shipping ? `DC: PKR ${SHIPPING_FEE}/-` : subtotal ? "Complimentary" : "—"}</span></div>
+      <p className="shipping-rule">DC: PKR {SHIPPING_FEE}/- under {formatPrice(FREE_SHIPPING_THRESHOLD)}; complimentary at or above.</p>
       <div className="summary-total"><span>Estimated total</span><strong>{formatPrice(total)}</strong></div>
       {actionLabel && <StoreLink href="/checkout" navigate={navigate} className="button button-dark button-full">{actionLabel} <ArrowRight size={16} /></StoreLink>}
       <p className="cod-note"><CreditCard size={16} /> Cash on Delivery available</p>
@@ -1838,7 +1961,7 @@ function CartDrawer({
             </div>
             <div className="drawer-summary">
               <div className="summary-line"><span>Subtotal</span><strong>{formatPrice(subtotal)}</strong></div>
-              <p className="shipping-rule">{shipping ? `${formatPrice(shipping)} shipping applies.` : `Complimentary shipping at ${formatPrice(FREE_SHIPPING_THRESHOLD)} or more.`}</p>
+              <p className="shipping-rule">{shipping ? `DC: PKR ${SHIPPING_FEE}/- applies.` : `Complimentary shipping at ${formatPrice(FREE_SHIPPING_THRESHOLD)} or more.`}</p>
               <button className="button button-dark button-full" type="button" onClick={() => navigate("/checkout")}>Continue to checkout <ArrowRight size={16} /></button>
               <button className="drawer-cart-link" type="button" onClick={() => navigate("/cart")}>View full bag <ArrowUpRight size={14} /></button>
               <span className="drawer-total-hidden" aria-hidden="true">{formatPrice(total)}</span>
@@ -1879,7 +2002,7 @@ function buildWhatsAppOrderUrl(
     ...items,
     "",
     `Subtotal: ${formatPrice(subtotal)}`,
-    `Shipping: ${shipping ? formatPrice(shipping) : "Free"}`,
+    `DC: ${shipping ? `PKR ${SHIPPING_FEE}/-` : "Free"}`,
     `*Total: ${formatPrice(total)}*`,
     "Payment: Cash on Delivery",
     "",
@@ -2201,7 +2324,7 @@ function InfoBlockRenderer({ block }: { block: InfoBlock }) {
 function InfoPage({ slug, navigate }: { slug: string; navigate: Navigate }) {
   const page = infoPageContent[slug] || infoPageContent["our-story"];
   return (
-    <main className="page-shell info-page">
+    <main className={`page-shell info-page ${slug === "contact" ? "contact-page" : ""}`}>
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: page.title }]} navigate={navigate} />
       <article className="info-article">
         <p className="eyebrow">{page.eyebrow}</p>
@@ -2221,7 +2344,7 @@ function NotFoundPage({ navigate }: { navigate: Navigate }) {
     <main className="page-shell not-found-page">
       <p className="eyebrow">A TURN IN THE WRONG DIRECTION</p>
       <h1>We could not find that page.</h1>
-      <p>Let us take you back to By RAH. edit.</p>
+      <p>Let us take you back to BY RAH. Edit.</p>
       <StoreLink className="button button-dark" href="/" navigate={navigate}>Return home <ArrowRight size={16} /></StoreLink>
     </main>
   );
@@ -2233,7 +2356,7 @@ function Footer({ navigate }: { navigate: Navigate }) {
       <div className="footer-main">
         <div className="footer-brand-column">
           <StoreLink href="/" navigate={navigate} className="wordmark footer-wordmark">
-            <img className="wordmark-logo" src={imageLibrary.logoDark} alt="By RAH. — Modesty by RAH" />
+            <img className="wordmark-logo" src={imageLibrary.logoDark} alt="RAH. — Modesty by RAH" />
           </StoreLink>
           <SocialIconRow className="footer-social-row" />
         </div>
