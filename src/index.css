@@ -61,7 +61,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .eyebrow { margin: 0 0 13px; color: #89796b; font-size: 14px; font-weight: 600; letter-spacing: .19em; line-height: 1.4; text-transform: uppercase; }
 .section { width: min(100% - 96px, var(--content)); margin: 0 auto; padding: 54px 0; }
 .section-heading { margin-bottom: 24px; }
-.section-heading h2, .story-copy h2, .promo-content h2, .newsletter-copy h2 { margin: 0; font-family: var(--sans); font-size: clamp(34px, 4vw, 49px); font-weight: 500; letter-spacing: -.045em; line-height: 1.1; }
+.section-heading h2, .story-copy h2, .promo-content h2 { margin: 0; font-family: var(--sans); font-size: clamp(34px, 4vw, 49px); font-weight: 500; letter-spacing: -.045em; line-height: 1.1; }
 .section-heading-split { display: flex; justify-content: space-between; align-items: end; gap: 28px; }
 .section-heading .eyebrow { margin-bottom: 10px; }
 .section-description { margin: 11px 0 0; color: var(--muted); font-size: 16px; }
@@ -192,16 +192,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .quote-mark { color: var(--brown); font-size: 15px; letter-spacing: .1em; }
 
 /* Newsletter and footer */
-.newsletter-section { padding: 40px max(48px, calc((100vw - var(--content)) / 2)); display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 55px; background: var(--cream-deep); }
-.newsletter-copy h2 { font-size: clamp(34px, 4vw, 46px); }
-.newsletter-copy > p:not(.eyebrow) { margin: 9px 0 0; color: var(--muted); font-size: 16px; }
-.newsletter-form-wrap { max-width: 540px; width: 100%; justify-self: end; }
-.newsletter-form { min-height: 49px; display: flex; border-bottom: 1px solid var(--brown); }
-.newsletter-form input { min-width: 0; flex: 1; padding: 0 10px 0 0; border: 0; outline: none; background: transparent; color: var(--brown); font-size: 16px; }
-.newsletter-form input::placeholder { color: #928477; }
-.newsletter-form .button { align-self: center; min-height: 40px; padding: 0 15px; }
-.newsletter-message { min-height: 14px; margin: 9px 0 0; color: #87796c; font-size: 14px; line-height: 1.5; }
-.newsletter-message.is-success { color: #526247; }
 .help-section { padding: 48px max(48px, calc((100vw - var(--content)) / 2)); background: var(--brown); color: var(--cream); }
 .help-section-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; }
 .help-links-column { position: relative; }
@@ -548,7 +538,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .service-item span { font-size: 14px; line-height: 1.3; }
   .section { padding-top: 36px; padding-bottom: 36px; }
   .section-heading { margin-bottom: 18px; }
-  .section-heading h2, .story-copy h2, .promo-content h2, .newsletter-copy h2 { font-size: 35px; line-height: 1.1; }
+  .section-heading h2, .story-copy h2, .promo-content h2 { font-size: 35px; line-height: 1.1; }
   .section-heading-split { align-items: flex-end; }
   .section-heading-split > .underlined-link { margin-bottom: 3px; font-size: 15px; white-space: nowrap; }
   .section-description { max-width: 225px; margin-top: 8px; font-size: 15px; line-height: 1.55; }
@@ -595,14 +585,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .testimonial-grid { grid-template-columns: 1fr; gap: 14px; margin-top: 23px; }
   .testimonial { padding: 15px 4px; }
   .testimonial > p { min-height: 0; margin: 9px 0 12px; font-size: 20px; }
-  .newsletter-section { padding: 30px 18px 28px; grid-template-columns: minmax(0,1fr); gap: 19px; }
-  .newsletter-copy h2 { font-size: 36px; }
-  .newsletter-copy > p:not(.eyebrow) { margin-top: 6px; font-size: 15px; }
-  .newsletter-form-wrap { justify-self: stretch; }
-  .newsletter-form { min-height: 45px; }
-  .newsletter-form input { font-size: 15px; }
-  .newsletter-form .button { min-height: 37px; padding: 0 10px; font-size: 14px; }
-  .newsletter-message { margin-top: 7px; font-size: 14px; }
   .help-section { padding: 32px 18px; }
   .help-section-inner { grid-template-columns: 1fr; gap: 24px; }
   .help-links-column h2, .help-contact-column h2 { font-size: 27px; margin-bottom: 15px; }
@@ -775,12 +757,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 /* Readable text on touch screens: inputs at 16px prevent iOS zoom */
 @media (max-width: 760px) {
-  .form-field input, .form-field textarea, .newsletter-form input, .sort-select-wrap select { font-size: 16px; }
+  .form-field input, .form-field textarea, .sort-select-wrap select { font-size: 16px; }
   .product-card-info h3 { min-height: 0; }
   .quick-add-button { font-size: 14px; }
 }
-.newsletter-section > * { min-width: 0; }
-@media (max-width: 760px) { .newsletter-form .button { white-space: nowrap; padding: 0 12px; } .newsletter-copy > p:not(.eyebrow) { font-size: 15px; } }
 @media (max-width: 760px) {
   .announcement-bar { gap: 6px; padding: 5px 8px; font-size: 10.5px; letter-spacing: .03em; white-space: nowrap; }
   .footer-contact-column a, .footer-contact-column p { align-items: flex-start; overflow-wrap: anywhere; font-size: 15px; }
@@ -790,7 +770,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 /* ===== v6: larger body text, smaller headings, white product area, merged brown footer ===== */
 body { font-size: 16px; line-height: 1.55; }
-.section-heading h2, .story-copy h2, .promo-content h2, .newsletter-copy h2 { font-size: clamp(26px, 2.6vw, 34px); letter-spacing: -.03em; }
+.section-heading h2, .story-copy h2, .promo-content h2 { font-size: clamp(26px, 2.6vw, 34px); letter-spacing: -.03em; }
 .centered-heading h2 { font-size: clamp(26px, 2.6vw, 34px); }
 .story-copy h2 { font-size: clamp(28px, 3vw, 38px); }
 .promo-content h2 { font-size: clamp(28px, 3vw, 38px); }
@@ -842,7 +822,7 @@ body { font-size: 16px; line-height: 1.55; }
 @media (max-width: 760px) {
   body { font-size: 16px; }
   .announcement-bar { font-size: 12px; }
-  .section-heading h2, .story-copy h2, .promo-content h2, .newsletter-copy h2, .centered-heading h2 { font-size: 26px; }
+  .section-heading h2, .story-copy h2, .promo-content h2, .centered-heading h2 { font-size: 26px; }
   .story-copy h2, .promo-content h2 { font-size: 28px; }
   .listing-intro h1 { font-size: 28px; }
   .listing-intro { padding: 8px 0 22px; }
@@ -1244,3 +1224,11 @@ body:has(.cart-page), body:has(.info-page), body:has(.all-collections-page),
 .cart-drawer { background: #fff; }
 .cart-drawer .drawer-heading, .cart-drawer .drawer-cart-lines, .cart-drawer .drawer-summary, .cart-drawer .drawer-footer { background: #fff; }
 .cart-drawer .cart-item-image { background: #fff; }
+
+/* Mobile: 16px fields stop iOS/Android from zooming in on focus; no sideways drift */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { max-width: 100%; overflow-x: clip; }
+input, select, textarea { font-size: 16px; }
+@media (max-width: 900px) {
+  input, select, textarea, .form-field input, .form-field textarea, .search-form > input, .sort-select-wrap select { font-size: 16px !important; }
+}
