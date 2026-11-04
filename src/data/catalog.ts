@@ -405,10 +405,10 @@ export const products: Product[] = [
       { name: "Off White", hex: "#f2f2ee" },
       { name: "Bottle Green", hex: "#0f4a3c" },
       { name: "Purple", hex: "#4f1d52" },
-      { name: "Ice Grey", hex: "#8e92af" },
+      { name: "Blue Grey", hex: "#8e92af" },
     ],
     images: ["/images/products/hijab-niqab/cover.jpg", "/images/products/hijab-niqab/mulberry.jpg", "/images/products/hijab-niqab/dark-grey.jpg", "/images/products/hijab-niqab/off-white.jpg", "/images/products/hijab-niqab/bottle-green.jpg", "/images/products/hijab-niqab/blue-grey.jpg", "/images/products/hijab-niqab/purple.jpg"],
-    colorImages: { "Mulberry": 1, "Dark Grey": 2, "Off White": 3, "Bottle Green": 4, "Ice Grey": 5, "Purple": 6 },
+    colorImages: { "Mulberry": 1, "Dark Grey": 2, "Off White": 3, "Bottle Green": 4, "Blue Grey": 5, "Purple": 6 },
     description: hijabNiqabDescription,
     details: [],
     stock: 20,
@@ -1124,7 +1124,7 @@ const inventory: Record<string, number | Record<string, number>> = {
     "Light Taupe": 2, "Lavender": 2, "Purple": 2, "Dusty Blue": 2, "Muted Slate Blue": 2,
   },
   // Matching Hijab and Niqab (units per colour)
-  "matching-hijab-and-niqab-set": { "Mulberry": 2, "Purple": 2, "Bottle Green": 1, "Dark Grey": 1, "Off White": 1, "Ice Grey": 1 },
+  "matching-hijab-and-niqab-set": { "Mulberry": 2, "Purple": 2, "Bottle Green": 1, "Dark Grey": 1, "Off White": 1, "Blue Grey": 0 },
   // Chiffon Georgette
   "chiffon-georgette-purple": 2,
   "chiffon-georgette-lavender": 0,

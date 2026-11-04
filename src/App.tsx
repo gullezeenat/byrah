@@ -316,12 +316,7 @@ function App() {
   let page: ReactNode;
   if (location.pathname === "/") {
     page = (
-      <HomePage
-        navigate={navigate}
-        wishlist={wishlist}
-        onWishlist={toggleWishlist}
-        onAdd={addToCart}
-      />
+      <HomePage navigate={navigate} />
     );
   } else if (location.pathname === "/shop" || location.pathname === "/search" || baseCollectionSlug) {
     const isSearch = location.pathname === "/search";
@@ -845,17 +840,7 @@ function searchProducts(query: string) {
   );
 }
 
-function HomePage({
-  navigate,
-  wishlist,
-  onWishlist,
-  onAdd,
-}: {
-  navigate: Navigate;
-  wishlist: string[];
-  onWishlist: (productId: string) => void;
-  onAdd: (productId: string, color?: string, size?: string, quantity?: number) => void;
-}) {
+function HomePage({ navigate }: { navigate: Navigate }) {
   return (
     <main>
       <HeroSection />
@@ -883,13 +868,14 @@ function HomePage({
             <p className="section-description">Thoughtfully selected pieces for everyday elegance.</p>
           </div>
         </div>
-        <ProductGrid
-          items={products.filter((item) => item.bundleOf || item.subcategory === "Vintage Leopard")}
-          navigate={navigate}
-          wishlist={wishlist}
-          onWishlist={onWishlist}
-          onAdd={onAdd}
-        />
+        <div className="collection-grid edit-collection-grid">
+          {[
+            { title: "Leopard Print Hijabs", href: "/collections/hijabs/leopard-print-hijabs", image: products.find((item) => item.subcategory === "Vintage Leopard")?.images[0] || imageLibrary.georgette },
+            { title: "Bundles", href: "/collections/bundles", image: (products.find((item) => item.category === "Bundles")?.images[1]) || imageLibrary.bundles },
+          ].map((card, index) => (
+            <CollectionCard key={card.href} collection={{ slug: card.title, title: card.title, description: "", image: card.image }} href={card.href} index={index} navigate={navigate} />
+          ))}
+        </div>
       </section>
       <PromotionalBanner navigate={navigate} />
       <Testimonials />
