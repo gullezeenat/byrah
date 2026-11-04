@@ -1124,9 +1124,9 @@ const inventory: Record<string, number | Record<string, number>> = {
     "Light Taupe": 2, "Lavender": 2, "Purple": 2, "Dusty Blue": 2, "Muted Slate Blue": 2,
   },
   // Matching Hijab and Niqab (units per colour)
-  "matching-hijab-and-niqab-set": { "Mulberry": 2, "Purple": 2, "Bottle Green": 1, "Dark Grey": 1, "Off White": 1, "Blue Grey": 0 },
+  "matching-hijab-and-niqab-set": { "Mulberry": 2, "Purple": 2, "Bottle Green": 1, "Dark Grey": 1, "Off White": 0, "Blue Grey": 0 },
   // Chiffon Georgette
-  "chiffon-georgette-purple": 2,
+  "chiffon-georgette-purple": 1,
   "chiffon-georgette-lavender": 0,
   "chiffon-georgette-chocolate-brown": 1,
   "chiffon-georgette-mahroon": 2,
@@ -1158,7 +1158,7 @@ const inventory: Record<string, number | Record<string, number>> = {
   // Leopard hijabs: 1 each (Classic Leopard Brown is sold out)
   "classic-leopard-beige": 0, "classic-leopard-black": 1, "classic-leopard-brown": 0, "classic-leopard-dark-grey": 1,
   "classic-leopard-green": 1, "classic-leopard-light-grey": 1, "classic-leopard-orange": 1, "classic-leopard-pink": 1,
-  "classic-leopard-sage-grey": 1, "classic-leopard-sand": 1, "classic-leopard-white": 1,
+  "classic-leopard-sage-grey": 1, "classic-leopard-sand": 0, "classic-leopard-white": 1,
   "vintage-leopard-blue": 1, "vintage-leopard-butter-yellow": 1, "vintage-leopard-mahroon": 1,
   "leopard-print-arabic-lawn-hijab-mehndi-green": 1,
   // Hijab pins (bulb pins: 800 pins in stock, never shown to customers)
