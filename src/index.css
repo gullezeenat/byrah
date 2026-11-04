@@ -1152,3 +1152,85 @@ body:has(.contact-page) {
 }
 .nav-dropdown a.nav-sub-child { padding-left: 30px !important; font-size: .94em; opacity: .92; }
 .nav-dropdown a.nav-sub-parent { font-weight: 500; }
+
+/* ===== v19 ===== */
+/* white pages */
+body:has(.cart-page), body:has(.info-page), body:has(.all-collections-page),
+.app-shell:has(.cart-page), .app-shell:has(.info-page), .app-shell:has(.all-collections-page),
+.cart-page, .info-page { background: #fff; }
+
+/* BY RAH. Edit description on one row */
+.featured-section .section-description { max-width: none; }
+
+/* thinner service cards */
+.service-section { padding: 10px 0; }
+.service-grid { gap: 10px; }
+.service-item { min-height: 54px; padding: 8px 14px; gap: 12px; border-radius: 10px; }
+.service-item > svg { width: 20px; height: 20px; }
+.service-item strong { font-size: 15px; }
+.service-item span { font-size: 13.5px; }
+@media (max-width: 760px) {
+  .service-section { padding: 8px 0; }
+  .service-grid { gap: 8px; }
+  .service-item { min-height: 46px; padding: 6px 10px; gap: 8px; border-radius: 8px; }
+  .service-item > svg { width: 17px; height: 17px; }
+  .service-item strong { font-size: 13px; line-height: 1.2; }
+  .service-item span { font-size: 11.5px; }
+}
+
+/* smaller product buttons */
+.product-actions { gap: 10px; }
+.product-actions .button { min-height: 50px; font-size: 16px; letter-spacing: .03em; }
+@media (max-width: 760px) {
+  .product-actions { gap: 8px; }
+  .product-actions .button { min-height: 44px; font-size: 14.5px; }
+}
+
+/* lighter, smaller, landscape delivery card */
+.delivery-timeline.tl { margin: 16px 0; padding: 14px 18px 12px; background: #f6f2ed; border-radius: 12px; }
+.tl-icon, .tl-icon svg { width: 28px; height: 28px; }
+.tl-line { height: 3px; }
+.tl-line::before, .tl-line::after { width: 9px; height: 9px; margin-top: -4.5px; }
+.tl-line::before { left: -4px; }
+.tl-line::after { right: -4px; }
+.tl-labels { margin-top: 8px; }
+.tl-labels div { gap: 2px; }
+.tl-labels strong { font-size: 14px; }
+.tl-labels span { font-size: 12.5px; }
+@media (max-width: 760px) {
+  .delivery-timeline.tl { padding: 12px 12px 10px; border-radius: 10px; }
+  .tl-icon, .tl-icon svg { width: 24px; height: 24px; }
+  .tl-labels strong { font-size: 12.5px; }
+  .tl-labels span { font-size: 11px; }
+}
+
+/* policy pages: big sub-headings, small text */
+.info-body p { font-size: 14.5px; line-height: 1.85; }
+.info-list li { font-size: 14.5px; }
+.info-body p.info-bold { margin: 28px 0 10px; color: var(--brown); font-size: 22px; font-weight: 500; line-height: 1.3; letter-spacing: -.01em; }
+.info-body p.info-bold:first-child { margin-top: 0; }
+@media (max-width: 760px) {
+  .info-body p { font-size: 14px; }
+  .info-list li { font-size: 14px; }
+  .info-body p.info-bold { font-size: 20px; }
+}
+
+/* view everything */
+.all-collection-category { margin-bottom: 44px; }
+.all-category-link { color: inherit; text-decoration: none; }
+.all-collections-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1000px) { .all-collections-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .all-collections-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.collection-card.is-coming-soon .collection-image-wrap { display: grid; place-items: center; background: #f1ebe4; color: #8b7b6e; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; }
+.grouped-heading { margin: 8px 0 18px; font-size: clamp(22px, 2.4vw, 30px); font-weight: 500; }
+.grouped-empty { color: var(--muted); }
+.all-collection-subcategory { margin-bottom: 44px; }
+.collection-grid.all-collections-grid { display: grid; overflow: visible; margin-left: 0; margin-right: 0; padding: 0; scroll-snap-type: none; }
+@media (max-width: 760px) {
+  .collection-grid.all-collections-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .all-collections-grid .collection-card { min-width: 0; width: auto; flex: none; }
+}
+.info-body { margin-top: 18px; }
+@media (max-width: 760px) {
+  .featured-section .section-description { font-size: 13.5px; white-space: nowrap; max-width: none; }
+}

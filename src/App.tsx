@@ -73,7 +73,6 @@ type CheckoutValues = {
   phone: string;
   address: string;
   city: string;
-  postal: string;
   notes: string;
 };
 type Navigate = (href: string) => void;
@@ -343,8 +342,24 @@ function App() {
     const newOnly = params.get("new") === "true";
     const requestedSort = params.get("sort") as SortOption | null;
     const validSorts: SortOption[] = ["Featured", "Price: Low to High", "Price: High to Low", "Newest"];
+    const groupedSections: { heading: string; items: Product[] }[] | null =
+      !isSearch && !isShop && parentSubCategory?.children && !childSlug
+        ? parentSubCategory.children.map((child) => ({ heading: child.label, items: products.filter((item) => item.subcategory === child.label) }))
+        : !isSearch && !isShop && baseCollectionSlug === "bundles" && !subCategorySlug
+          ? [{ heading: "Hijab Bundles", items: products.filter((item) => item.category === "Bundles") }]
+          : null;
     page = isShop ? (
-      <AllCollectionsPage navigate={navigate} wishlist={wishlist} onWishlist={toggleWishlist} onAdd={addToCart} />
+      <AllCollectionsPage navigate={navigate} />
+    ) : groupedSections ? (
+      <GroupedCollectionPage
+        title={parentSubCategory?.children ? parentSubCategory.label : meta.title}
+        crumbs={parentSubCategory?.children ? [{ label: meta.title, href: `/collections/${baseCollectionSlug}` }] : []}
+        sections={groupedSections}
+        navigate={navigate}
+        wishlist={wishlist}
+        onWishlist={toggleWishlist}
+        onAdd={addToCart}
+      />
     ) : (
       <ProductListingPage
         key={`${location.pathname}${location.search}`}
@@ -597,9 +612,6 @@ function Header({
                 {subs.map((sub) => (
                   <Fragment key={sub.slug}>
                     <StoreLink href={`${link.href}/${sub.slug}`} navigate={navigate} className={sub.children ? "nav-sub-parent" : ""}>{sub.label}</StoreLink>
-                    {sub.children?.map((child) => (
-                      <StoreLink key={child.slug} href={`${link.href}/${sub.slug}/${child.slug}`} navigate={navigate} className="nav-sub-child">{child.label}</StoreLink>
-                    ))}
                   </Fragment>
                 ))}
               </div>
@@ -697,16 +709,9 @@ function MobileMenu({ open, onClose, navigate, wishlistCount }: { open: boolean;
               <span>All {panelParent ? panelParent.label : panelLink.label}</span>
             </StoreLink>
             {panelSubs.map((sub) =>
-              sub.children ? (
-                <button key={sub.slug} type="button" className="menu-parent" onClick={() => setPanel(`${panelParts[0]}/${sub.slug}`)} aria-haspopup="true">
-                  <span>{sub.label}</span>
-                  <ChevronRight size={17} strokeWidth={1.5} aria-hidden="true" />
-                </button>
-              ) : (
-                <StoreLink key={sub.slug} href={`${panelBase}/${sub.slug}`} navigate={navigate} onClick={onClose}>
-                  <span>{sub.label}</span>
-                </StoreLink>
-              ),
+              <StoreLink key={sub.slug} href={`${panelBase}/${sub.slug}`} navigate={navigate} onClick={onClose}>
+                <span>{sub.label}</span>
+              </StoreLink>,
             )}
           </div>
         ) : (
@@ -877,9 +882,6 @@ function HomePage({
             <h2>BY RAH. Edit</h2>
             <p className="section-description">Thoughtfully selected pieces for everyday elegance.</p>
           </div>
-          <StoreLink className="underlined-link" href="/shop" navigate={navigate}>
-            Explore the edit <ArrowRight size={16} />
-          </StoreLink>
         </div>
         <ProductGrid
           items={products.filter((item) => item.bundleOf || item.subcategory === "Vintage Leopard")}
@@ -891,7 +893,6 @@ function HomePage({
       </section>
       <PromotionalBanner navigate={navigate} />
       <Testimonials />
-      <NewsletterForm />
     </main>
   );
 }
@@ -937,13 +938,15 @@ function CollectionCard({
   collection,
   index,
   navigate,
+  href,
 }: {
   collection: Collection;
   index: number;
   navigate: Navigate;
+  href?: string;
 }) {
   return (
-    <StoreLink href={`/collections/${collection.slug}`} navigate={navigate} className={`collection-card collection-card-${index + 1}`}>
+    <StoreLink href={href || `/collections/${collection.slug}`} navigate={navigate} className={`collection-card collection-card-${index + 1}`}>
       <div className="collection-image-wrap">
         <StoreImage src={collection.image} alt={`${collection.title} collection`} />
       </div>
@@ -1017,7 +1020,11 @@ function ProductCard({
       <StoreLink href={`/products/${product.slug}`} navigate={navigate} className="product-card-info">
         <h3>{product.name}</h3>
         <div className="product-price-row">
-          <span>{product.bundleOf ? "2 pieces from " : ""}{formatPrice(product.price)}</span>
+          <span>
+            {product.bundleOf && product.bundlePrices
+              ? `${Math.max(...Object.keys(product.bundlePrices).map(Number))} pieces for ${formatPrice(product.bundlePrices[Math.max(...Object.keys(product.bundlePrices).map(Number))])}`
+              : formatPrice(product.price)}
+          </span>
         </div>
       </StoreLink>
       {showRemove && onRemove && (
@@ -1096,78 +1103,100 @@ function Testimonials() {
   );
 }
 
-function NewsletterForm() {
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const [isSuccess, setIsSuccess] = useState(false);
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    if (!form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
-    setIsSuccess(true);
-    setMessage("Thank you for your interest.");
-  };
-
+function GroupedCollectionPage({
+  title,
+  crumbs,
+  sections,
+  navigate,
+  wishlist,
+  onWishlist,
+  onAdd,
+}: {
+  title: string;
+  crumbs: { label: string; href: string }[];
+  sections: { heading: string; items: Product[] }[];
+  navigate: Navigate;
+  wishlist: string[];
+  onWishlist: (id: string) => void;
+  onAdd: (id: string, color?: string, size?: string, quantity?: number) => void;
+}) {
   return (
-    <section className="newsletter-section">
-      <div className="newsletter-copy">
-        <p className="eyebrow">A LETTER, OCCASIONALLY</p>
-        <h2>Stay Close to RAH.</h2>
-        <p>Get updates on new arrivals, collections, and special offers.</p>
+    <main className="listing-page all-collections-page">
+      <div className="page-shell">
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, ...crumbs, { label: title }]} navigate={navigate} />
+        <div className="listing-intro"><p className="eyebrow">BY RAH. COLLECTION</p><h1>{title}</h1></div>
       </div>
-      <div className="newsletter-form-wrap">
-        <form className="newsletter-form" onSubmit={submit}>
-          <label className="sr-only" htmlFor="newsletter-email">Email address</label>
-          <input
-            id="newsletter-email"
-            type="email"
-            required
-            value={email}
-            onChange={(event) => { setEmail(event.target.value); setIsSuccess(false); setMessage(""); }}
-            placeholder="Your email address"
-            aria-describedby="newsletter-response"
-          />
-          <button className="button button-dark" type="submit" disabled={isSuccess}>
-            {isSuccess ? "Subscribed" : "Subscribe"}<ArrowRight size={16} />
-          </button>
-        </form>
-        <p id="newsletter-response" className={`newsletter-message ${isSuccess ? "is-success" : ""}`} aria-live="polite">
-          {message || "A quiet note from us, never too often."}
-        </p>
+      <div className="page-shell all-collections-content">
+        {sections.map((section) => (
+          <section className="all-collection-subcategory" key={section.heading}>
+            {section.heading !== title && <h2 className="grouped-heading">{section.heading}</h2>}
+            {section.items.length ? (
+              <ProductGrid items={section.items} navigate={navigate} wishlist={wishlist} onWishlist={onWishlist} onAdd={onAdd} />
+            ) : (
+              <p className="grouped-empty">Coming soon.</p>
+            )}
+          </section>
+        ))}
       </div>
-    </section>
+    </main>
   );
 }
 
-function AllCollectionsPage({ navigate, wishlist, onWishlist, onAdd }: { navigate: Navigate; wishlist: string[]; onWishlist: (id: string) => void; onAdd: (id: string, color?: string, size?: string, quantity?: number) => void }) {
-  const groupedCategories = ["Hijabs", "Irani Chaddar", "Accessories", "Large Dubatta", "Bundles", "Hampers"];
+function AllCollectionsPage({ navigate }: { navigate: Navigate }) {
+  const firstImage = (predicate: (item: Product) => boolean, fallback: string) => products.find(predicate)?.images[0] || fallback;
+  const sections: { title: string; href: string; cards: { title: string; href: string; image?: string }[] }[] = [
+    {
+      title: "Hijabs",
+      href: "/collections/hijabs",
+      cards: subCategories.hijabs.map((sub) => {
+        const labels = sub.children ? sub.children.map((child) => child.label) : [sub.label];
+        return {
+          title: sub.label,
+          href: `/collections/hijabs/${sub.slug}`,
+          image: products.find((item) => !!item.subcategory && labels.includes(item.subcategory))?.images[0],
+        };
+      }),
+    },
+    { title: "Irani Chaddar", href: "/collections/irani-chaddar", cards: [{ title: "Irani Chaddar", href: "/collections/irani-chaddar", image: firstImage((item) => item.category === "Irani Chaddar", imageLibrary.abaya) }] },
+    { title: "Large Dubatta", href: "/collections/large-dubatta", cards: [{ title: "Large Dubatta", href: "/collections/large-dubatta", image: firstImage((item) => item.category === "Large Dubatta", imageLibrary.hampers) }] },
+    {
+      title: "Accessories",
+      href: "/collections/accessories",
+      cards: subCategories.accessories.map((sub) => ({
+        title: sub.label,
+        href: `/collections/accessories/${sub.slug}`,
+        image: products.find((item) => item.subcategory === sub.label)?.images[0],
+      })),
+    },
+    { title: "Bundles", href: "/collections/bundles", cards: [{ title: "Hijab Bundles", href: "/collections/bundles", image: firstImage((item) => item.category === "Bundles", imageLibrary.hampers) }] },
+    { title: "Hampers", href: "/collections/hampers", cards: [{ title: "Hampers", href: "/collections/hampers", image: imageLibrary.hampers }] },
+  ];
   return (
     <main className="listing-page all-collections-page">
       <div className="page-shell">
         <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "View Everything" }]} navigate={navigate} />
-        <div className="listing-intro"><p className="eyebrow">BY RAH. COLLECTION</p><h1>Shop Everything</h1><p>Explore every RAH. category, collection and carefully selected piece.</p></div>
+        <div className="listing-intro"><p className="eyebrow">BY RAH. COLLECTION</p><h1>View Everything</h1></div>
       </div>
       <div className="page-shell all-collections-content">
-        {groupedCategories.map((category) => {
-          const categoryProducts = products.filter((product) => product.category === category);
-          if (!categoryProducts.length) return null;
-          const subs = (category === "Hijabs" ? subCategories.hijabs : category === "Accessories" ? subCategories.accessories : []).flatMap((sub) =>
-            sub.children ? sub.children.map((child) => ({ ...child, heading: `${sub.label} · ${child.label}` })) : [{ ...sub, heading: sub.label }],
-          );
-          return (
-            <section className="all-collection-category" key={category}>
-              <div className="section-heading"><p className="eyebrow">EXPLORE BY CATEGORY</p><h2>{category}</h2></div>
-              {subs.length ? subs.map((sub) => {
-                const items = categoryProducts.filter((product) => product.subcategory === sub.label);
-                return items.length ? <div className="all-collection-subcategory" key={sub.slug}><h3>{sub.heading}</h3><ProductGrid items={items} navigate={navigate} wishlist={wishlist} onWishlist={onWishlist} onAdd={onAdd} /></div> : null;
-              }) : <ProductGrid items={categoryProducts} navigate={navigate} wishlist={wishlist} onWishlist={onWishlist} onAdd={onAdd} />}
-            </section>
-          );
-        })}
+        {sections.map((section) => (
+          <section className="all-collection-category" key={section.title}>
+            <div className="section-heading">
+              <StoreLink href={section.href} navigate={navigate} className="all-category-link"><h2>{section.title}</h2></StoreLink>
+            </div>
+            <div className="collection-grid all-collections-grid">
+              {section.cards.map((card, index) =>
+                card.image ? (
+                  <CollectionCard key={card.href} collection={{ slug: card.title, title: card.title, description: "", image: card.image }} href={card.href} index={index} navigate={navigate} />
+                ) : (
+                  <div key={card.href} className="collection-card is-coming-soon">
+                    <div className="collection-image-wrap"><span>Coming Soon</span></div>
+                    <div className="collection-card-caption"><h3>{card.title}</h3></div>
+                  </div>
+                ),
+              )}
+            </div>
+          </section>
+        ))}
       </div>
     </main>
   );
@@ -1518,7 +1547,7 @@ function ProductInfo({
           {stock < 1 ? "Out of stock" : "Add to cart"}
         </button>
         <button type="button" className="button button-dark button-full" onClick={addProduct} disabled={stock < 1}>
-          Buy it now <ArrowRight size={16} />
+          Buy it now
         </button>
       </div>
       <DeliveryTimeline />
@@ -2012,7 +2041,6 @@ function buildWhatsAppOrderUrl(
     values.email.trim() ? `Email: ${values.email.trim()}` : null,
     `Address: ${values.address.trim()}`,
     `City: ${values.city.trim()}`,
-    `Postal code: ${values.postal.trim()}`,
     values.notes.trim() ? `Notes: ${values.notes.trim()}` : null,
   ].filter((line): line is string => line !== null).join("\n");
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
@@ -2035,7 +2063,7 @@ function CheckoutPage({
 }) {
   const [confirmation, setConfirmation] = useState("");
   const [whatsAppUrl, setWhatsAppUrl] = useState("");
-  const [values, setValues] = useState<CheckoutValues>({ name: "", email: "", phone: "", address: "", city: "", postal: "", notes: "" });
+  const [values, setValues] = useState<CheckoutValues>({ name: "", email: "", phone: "", address: "", city: "", notes: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -2046,7 +2074,6 @@ function CheckoutPage({
     if (values.phone.replace(/\D/g, "").length < 10) nextErrors.phone = "Enter a phone number with at least 10 digits.";
     if (!values.address.trim()) nextErrors.address = "Please enter your delivery address.";
     if (!values.city.trim()) nextErrors.city = "Please enter your city.";
-    if (!values.postal.trim()) nextErrors.postal = "Please enter your postal code.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     const reference = `RAH-${Date.now().toString(36).slice(-5).toUpperCase()}`;
@@ -2139,7 +2166,6 @@ function CheckoutForm({
       <div className="form-grid">
         <FormField className="field-full" label="Street address" name="address" value={values.address} onChange={(value) => onChange("address", value)} error={errors.address} autoComplete="street-address" />
         <FormField label="City" name="city" value={values.city} onChange={(value) => onChange("city", value)} error={errors.city} autoComplete="address-level2" />
-        <FormField label="Postal code" name="postal" value={values.postal} onChange={(value) => onChange("postal", value)} error={errors.postal} autoComplete="postal-code" />
         <label className="form-field field-full">
           <span>Order notes <small>Optional</small></span>
           <textarea value={values.notes} onChange={(event) => onChange("notes", event.target.value)} rows={3} placeholder="Gift message or delivery notes" />
