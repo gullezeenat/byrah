@@ -23,6 +23,13 @@ Browser mein kholein: `https://apki-website.com/api/health`
 Sab theek ho to: `"ok": true`, `stockTable`, `ordersTable`, `placeOrderFunction` teeno `"ok"`.
 Agar kuch galat ho to `problem` mein likha aata hai ke kya karna hai.
 
+## Agar website par stock update na dikhe
+**Sabse aasan check:** apni website ka koi bhi page kholein aur link ke end mein `?stockdebug=1` laga dein, jaise `https://apki-website.com/?stockdebug=1`. Neeche ek patti aati hai: **hari** = live stock chal raha hai, **laal** = nahi chal raha aur uski wajah likhi hoti hai.
+
+1. `https://apki-website.com/api/health` kholein: `version` `v29` aur sab `ok` hona chahiye. `sample` mein chocolate-brown/lavender ki rows dikhti hain.
+2. `https://apki-website.com/api/stock` kholein: yahan `chiffon-georgette-chocolate-brown` ka number wahi hona chahiye jo Supabase mein hai.
+3. Website ko **apni Vercel wali link** par kholein (localhost / `npm run dev` par database nahi hota). Phir Ctrl+F5.
+
 ## Rozana kaam
 - **Stock badalna / restock:** Table Editor → `stock` → `quantity` number edit karein.
 - **Orders dekhna:** Table Editor → `orders`. `status` column mein new / confirmed / delivered / cancelled likh sakte hain.

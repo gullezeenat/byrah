@@ -121,6 +121,7 @@ function App() {
     { sort: "Featured" },
   );
   const [stockVersion, setStockVersion] = useState(0);
+  const [stockStatus, setStockStatus] = useState("checking...");
   const stockLoaded = useRef(false);
   const refreshStock = useCallback(async () => {
     try {
@@ -128,11 +129,21 @@ function App() {
       const timer = window.setTimeout(() => controller.abort(), 6000);
       const response = await fetch(`/api/stock?t=${Date.now()}`, { cache: "no-store", signal: controller.signal });
       window.clearTimeout(timer);
-      if (!response.ok) return;
-      applyRemoteStock(await response.json());
+      if (!response.ok) {
+        const body = (await response.text().catch(() => "")).slice(0, 300);
+        setStockStatus(`FAILED - /api/stock answered HTTP ${response.status} ${body}`);
+        console.warn("Live stock unavailable (", response.status, ") - showing built-in numbers. Open /api/health to see why.");
+        return;
+      }
+      const remote = (await response.json()) as Record<string, Record<string, number>>;
+      const count = Object.keys(remote).length;
+      setStockStatus(count ? `OK - live stock loaded for ${count} products (${new Date().toLocaleTimeString()})` : "FAILED - /api/stock answered but it is EMPTY (database table empty or key cannot read it)");
+      applyRemoteStock(remote);
       stockLoaded.current = true;
       setStockVersion((value) => value + 1);
-    } catch {
+    } catch (error) {
+      setStockStatus(`FAILED - /api/stock is not returning JSON (${String(error).slice(0, 120)}). Is this the Vercel site with the api folder?`);
+      console.warn("Live stock unavailable - showing built-in numbers.", error);
       /* no stock database (for example while developing locally): keep the built-in numbers */
     }
   }, []);
@@ -537,6 +548,11 @@ function App() {
         onQuantityChange={updateCartQuantity}
         onRemove={removeCartLine}
       />
+      {params.has("stockdebug") && (
+        <div style={{ position: "fixed", left: 8, right: 8, bottom: 8, zIndex: 9999, padding: "10px 12px", borderRadius: 6, fontSize: 13, lineHeight: 1.4, color: "#fff", background: stockStatus.startsWith("OK") ? "#2f6b3a" : "#9b2c2c" }}>
+          Stock check: {stockStatus}
+        </div>
+      )}
       {toast && (
         <div className="toast-message" role="status" aria-live="polite">
           <CircleCheck size={18} aria-hidden="true" />

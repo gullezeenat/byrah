@@ -119,6 +119,20 @@ begin
 end;
 $$;
 
+-- 4) Reads the stock numbers for the website (works whichever key the website uses).
+create or replace function public.get_stock()
+returns jsonb
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('product_id', product_id, 'color', color, 'quantity', quantity)), '[]'::jsonb)
+  from public.stock;
+$$;
+revoke all on function public.get_stock() from public;
+grant execute on function public.get_stock() to service_role, anon, authenticated;
+
 -- Only the website's server key may call it (not the public browser keys).
 revoke all on function public.place_order(jsonb, jsonb) from public, anon, authenticated;
 grant execute on function public.place_order(jsonb, jsonb) to service_role;

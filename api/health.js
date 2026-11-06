@@ -4,7 +4,7 @@ import { supabaseConfig, describeError } from "./_supabase.js";
 //   https://YOUR-SITE/api/health
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-  const report = { ok: false, env: { SUPABASE_URL: !!process.env.SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY } };
+  const report = { ok: false, version: "v29", env: { SUPABASE_URL: !!process.env.SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY } };
   const config = supabaseConfig();
   if (!config) {
     report.problem = "Environment variables are missing. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel > Settings > Environment Variables (Production), then Redeploy.";
@@ -27,7 +27,14 @@ export default async function handler(req, res) {
       const count = await fetch(`${config.url}/rest/v1/stock?select=product_id`, { headers: { ...config.headers, Prefer: "count=exact", Range: "0-0" } });
       report.stockRows = count.headers.get("content-range") || null;
     }
-    report.ok = stock.ok && orders.ok && fn.ok;
+    const getStock = await fetch(`${config.url}/rest/v1/rpc/get_stock`, { method: "POST", headers: config.headers, body: "{}" });
+    report.getStockFunction = getStock.ok ? "ok" : await describeError(getStock);
+    if (getStock.ok) {
+      const rows = await getStock.json();
+      report.stockRowsRead = rows.length;
+      report.sample = rows.filter((row) => /chocolate-brown|lavender/.test(row.product_id)).slice(0, 6);
+    }
+    report.ok = stock.ok && orders.ok && fn.ok && getStock.ok;
     if (report.ok && /\/0$/.test(report.stockRows || "")) {
       report.ok = false;
       report.problem = "The stock table is empty (or this key cannot read it). Run supabase/setup.sql again and make sure SUPABASE_SERVICE_ROLE_KEY is the secret / service_role key, not the publishable / anon key.";
