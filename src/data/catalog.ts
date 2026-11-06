@@ -543,7 +543,7 @@ export const products: Product[] = [
     collections: ["hijabs"],
     price: 600,
     colors: [{ name: "Purple", hex: "#5e2a84" }],
-    images: ["/images/products/hijab-cap/matching-hijab-and-cap-purple-1.jpg","/images/products/hijab-cap/tube-cap-purple.jpg"],
+    images: ["/images/products/hijab-cap/matching-hijab-and-cap-purple-1.jpg"],
     description: capdesc,
     details: [],
     stock: 25,
@@ -560,7 +560,7 @@ export const products: Product[] = [
     collections: ["hijabs"],
     price: 600,
     colors: [{ name: "Navy Blue", hex: "#1f2a4d" }],
-    images: ["/images/products/hijab-cap/matching-hijab-and-cap-navy-blue-1.jpg","/images/products/hijab-cap/tube-cap-navy-blue.jpg"],
+    images: ["/images/products/hijab-cap/matching-hijab-and-cap-navy-blue-1.jpg"],
     description: capdesc,
     details: [],
     stock: 25,
@@ -699,7 +699,7 @@ export const products: Product[] = [
     images: ["/images/products/tube-caps/tube-cap-navy-blue.jpg"],
     description: tubedesc,
     details: [],
-    stock: 1,
+    stock: 25,
     keywords: ["tube cap", "cap", "under scarf", "navy blue"],
     isNew: true,
   },
@@ -852,7 +852,7 @@ export const products: Product[] = [
     images: ["/images/products/magnets/hijab-magnet-metallic-grey.jpg"],
     description: magnetdesc,
     details: [],
-    stock: 1,
+    stock: 25,
     keywords: ["magnet", "no-snag", "pin", "metallic grey"],
     isNew: true,
   },
@@ -1124,9 +1124,9 @@ const inventory: Record<string, number | Record<string, number>> = {
     "Light Taupe": 2, "Lavender": 2, "Purple": 2, "Dusty Blue": 2, "Muted Slate Blue": 2,
   },
   // Matching Hijab and Niqab (units per colour)
-  "matching-hijab-and-niqab-set": { "Mulberry": 2, "Purple": 2, "Bottle Green": 1, "Dark Grey": 1, "Off White": 0, "Blue Grey": 0 },
+  "matching-hijab-and-niqab-set": { "Mulberry": 2, "Purple": 2, "Bottle Green": 1, "Dark Grey": 1, "Off White": 1, "Blue Grey": 0 },
   // Chiffon Georgette
-  "chiffon-georgette-purple": 1,
+  "chiffon-georgette-purple": 2,
   "chiffon-georgette-lavender": 0,
   "chiffon-georgette-chocolate-brown": 1,
   "chiffon-georgette-mahroon": 2,
@@ -1156,9 +1156,9 @@ const inventory: Record<string, number | Record<string, number>> = {
   "tube-cap-red": 2,
   "tube-cap-teal": 1,
   // Leopard hijabs: 1 each (Classic Leopard Brown is sold out)
-  "classic-leopard-beige": 0, "classic-leopard-black": 1, "classic-leopard-brown": 0, "classic-leopard-dark-grey": 1,
+  "classic-leopard-beige": 1, "classic-leopard-black": 1, "classic-leopard-brown": 0, "classic-leopard-dark-grey": 1,
   "classic-leopard-green": 1, "classic-leopard-light-grey": 1, "classic-leopard-orange": 1, "classic-leopard-pink": 1,
-  "classic-leopard-sage-grey": 1, "classic-leopard-sand": 0, "classic-leopard-white": 1,
+  "classic-leopard-sage-grey": 1, "classic-leopard-sand": 1, "classic-leopard-white": 1,
   "vintage-leopard-blue": 1, "vintage-leopard-butter-yellow": 1, "vintage-leopard-mahroon": 1,
   "leopard-print-arabic-lawn-hijab-mehndi-green": 1,
   // Hijab pins (bulb pins: 800 pins in stock, never shown to customers)
@@ -1187,6 +1187,32 @@ products.forEach((item) => {
 /** Units available for a product, optionally for one colour. */
 export const getStock = (product: Product, color?: string) =>
   product.colorStock ? (color ? product.colorStock[color] ?? 0 : product.stock) : product.stock;
+
+/** Key used for this product/colour in the stock database ('' for single-colour products). */
+export const stockKey = (product: Product, color: string) => (product.colorStock ? color : "");
+
+/** Replaces the built-in stock numbers with the live numbers from the stock database. */
+export const applyRemoteStock = (remote: Record<string, Record<string, number>>) => {
+  products.forEach((item) => {
+    const live = remote[item.id];
+    if (!live) return;
+    if (item.colorStock) {
+      const next = { ...item.colorStock };
+      Object.keys(next).forEach((name) => {
+        if (typeof live[name] === "number") next[name] = live[name];
+      });
+      item.colorStock = next;
+      item.stock = Object.values(next).reduce((sum, value) => sum + value, 0);
+    } else if (typeof live[""] === "number") {
+      item.stock = live[""];
+    }
+  });
+  products
+    .filter((item) => item.bundleOf)
+    .forEach((bundle) => {
+      bundle.stock = getBundleOptions(bundle.bundleOf as string).reduce((sum, option) => sum + option.stock, 0);
+    });
+};
 
 // ---------------------------------------------------------------------------
 // Build-your-own hijab bundles: one bundle product per hijab sub-category that

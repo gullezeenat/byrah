@@ -1,5 +1,6 @@
 import {
   Fragment,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -40,6 +41,8 @@ import {
 import {
   collections,
   getStock,
+  stockKey,
+  applyRemoteStock,
   formatPrice,
   imageLibrary,
   navigationLinks,
@@ -117,6 +120,23 @@ function App() {
     "rah-preferences",
     { sort: "Featured" },
   );
+  const [, setStockVersion] = useState(0);
+  const refreshStock = useCallback(async () => {
+    try {
+      const response = await fetch("/api/stock", { cache: "no-store" });
+      if (!response.ok) return;
+      applyRemoteStock(await response.json());
+      setStockVersion((value) => value + 1);
+    } catch {
+      /* no stock database (for example while developing locally): keep the built-in numbers */
+    }
+  }, []);
+  useEffect(() => {
+    refreshStock();
+    const onVisible = () => { if (document.visibilityState === "visible") refreshStock(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refreshStock]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -440,6 +460,7 @@ function App() {
         total={total}
         navigate={navigate}
         onComplete={() => setCart([])}
+        onStockRefresh={refreshStock}
       />
     );
   } else if (location.pathname.startsWith("/pages/")) {
@@ -2039,6 +2060,7 @@ function CheckoutPage({
   total,
   navigate,
   onComplete,
+  onStockRefresh,
 }: {
   lines: CartProduct[];
   subtotal: number;
@@ -2046,14 +2068,18 @@ function CheckoutPage({
   total: number;
   navigate: Navigate;
   onComplete: () => void;
+  onStockRefresh: () => Promise<void>;
 }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [stockError, setStockError] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [whatsAppUrl, setWhatsAppUrl] = useState("");
   const [values, setValues] = useState<CheckoutValues>({ name: "", email: "", phone: "", address: "", city: "", notes: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting) return;
     const nextErrors: Record<string, string> = {};
     if (!values.name.trim()) nextErrors.name = "Please enter your full name.";
     if (values.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) nextErrors.email = "Enter a valid email address.";
@@ -2062,11 +2088,41 @@ function CheckoutPage({
     if (!values.city.trim()) nextErrors.city = "Please enter your city.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
+
+    // Take the pieces out of stock. Only "not enough stock" stops the order; if the stock
+    // service cannot be reached the order still goes to WhatsApp so a sale is never lost.
+    setSubmitting(true);
+    setStockError("");
+    try {
+      const response = await fetch("/api/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: lines.map((line) => ({ productId: line.productId, color: stockKey(line.product, line.color), quantity: line.quantity })),
+        }),
+      });
+      if (response.status === 409) {
+        const data = (await response.json()) as { shortages?: { productId: string; color: string; available: number }[] };
+        const notes = (data.shortages || []).map((item) => {
+          const product = lines.find((line) => line.productId === item.productId)?.product;
+          const name = product ? product.name : "An item";
+          return item.available > 0 ? `${name}: only ${item.available} left` : `${name}: out of stock`;
+        });
+        setStockError(`Sorry, some pieces were just taken. ${notes.join("; ")}. Please update your bag and try again.`);
+        await onStockRefresh();
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      /* stock service unreachable: continue */
+    }
     const reference = `RAH-${Date.now().toString(36).slice(-5).toUpperCase()}`;
     const url = buildWhatsAppOrderUrl(reference, values, lines, subtotal, shipping, total);
     setConfirmation(reference);
     setWhatsAppUrl(url);
     onComplete();
+    setSubmitting(false);
+    void onStockRefresh();
     if (!window.open(url, "_blank", "noopener")) window.location.href = url;
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -2109,7 +2165,10 @@ function CheckoutPage({
         </div>
       ) : (
         <div className="checkout-layout">
-          <CheckoutForm values={values} errors={errors} onChange={update} onSubmit={handleSubmit} />
+          <div>
+            {stockError && <p className="checkout-stock-error" role="alert">{stockError}</p>}
+            <CheckoutForm values={values} errors={errors} onChange={update} onSubmit={handleSubmit} />
+          </div>
           <div className="checkout-order-column">
             <div className="checkout-order-items">
               <p className="eyebrow">IN YOUR BAG</p>
