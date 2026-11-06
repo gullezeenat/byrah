@@ -46,10 +46,15 @@ set search_path = public
 as $$
 declare
   it jsonb;
-  cur integer;
+  r record;
+  total integer;
+  remaining integer;
+  take integer;
+  want integer;
+  pid text;
+  col text;
   ref text := nullif(details->>'reference', '');
   short jsonb := '[]'::jsonb;
-  untracked jsonb := '[]'::jsonb;
 begin
   -- Nothing to do (used by /api/health to test the connection without changing anything).
   if jsonb_array_length(items) = 0 then
@@ -61,14 +66,19 @@ begin
     return jsonb_build_object('ok', true, 'duplicate', true);
   end if;
 
+  -- Step 1: check every item. A product with no stock row counts as out of stock.
+  -- color '' means "single-colour product": all of that product's rows are added together.
   for it in select * from jsonb_array_elements(items) loop
-    select quantity into cur from public.stock
-      where product_id = it->>'productId' and color = it->>'color' for update;
-    if not found then
-      untracked := untracked || jsonb_build_array(jsonb_build_object('productId', it->>'productId', 'color', it->>'color'));
-    elsif cur < (it->>'quantity')::int then
-      short := short || jsonb_build_array(jsonb_build_object(
-        'productId', it->>'productId', 'color', it->>'color', 'available', cur));
+    pid := it->>'productId'; col := coalesce(it->>'color', ''); want := (it->>'quantity')::int;
+    total := 0;
+    for r in select quantity from public.stock
+      where product_id = pid and (col = '' or lower(btrim(color)) = lower(btrim(col)))
+      order by color for update
+    loop
+      total := total + r.quantity;
+    end loop;
+    if total < want then
+      short := short || jsonb_build_array(jsonb_build_object('productId', pid, 'color', col, 'available', total));
     end if;
   end loop;
 
@@ -76,10 +86,21 @@ begin
     return jsonb_build_object('ok', false, 'shortages', short);
   end if;
 
+  -- Step 2: take the pieces out.
   for it in select * from jsonb_array_elements(items) loop
-    update public.stock
-      set quantity = quantity - (it->>'quantity')::int, updated_at = now()
-      where product_id = it->>'productId' and color = it->>'color';
+    pid := it->>'productId'; col := coalesce(it->>'color', ''); remaining := (it->>'quantity')::int;
+    for r in select product_id, color, quantity from public.stock
+      where product_id = pid and (col = '' or lower(btrim(color)) = lower(btrim(col)))
+      order by quantity desc, color
+    loop
+      exit when remaining <= 0;
+      take := least(r.quantity, remaining);
+      if take > 0 then
+        update public.stock set quantity = quantity - take, updated_at = now()
+          where product_id = r.product_id and color = r.color;
+        remaining := remaining - take;
+      end if;
+    end loop;
   end loop;
 
   if ref is not null then
@@ -94,7 +115,7 @@ begin
     on conflict (reference) do nothing;
   end if;
 
-  return jsonb_build_object('ok', true, 'untracked', untracked);
+  return jsonb_build_object('ok', true);
 end;
 $$;
 

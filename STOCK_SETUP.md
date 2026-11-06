@@ -29,6 +29,13 @@ Agar kuch galat ho to `problem` mein likha aata hai ke kya karna hai.
 - **Order cancel hua:** `stock` mein quantity wapas barha dein, aur `orders` mein status `cancelled` kar dein.
 - **Naya product:** website code mein add karein, phir `stock` mein row dalein (`product_id` = product ka id, `color` = colour ya khali).
 
+## Stock ke rules (database hi sab kuch tay karta hai)
+- Website ka stock aur "Out of stock" **sirf database** se aata hai. `quantity` 0 = Out of stock, 1 ya zyada = Add to cart chal jata hai (taaza stock har 20 second mein, aur Add dabate waqt bhi check hota hai).
+- Jis product ki `stock` table mein **row nahi**, wo Out of stock hai. Naye product ki row zaroor dalein.
+- Sirf ek colour wale product ka stock = uski sab rows ka total. Purani row (0) ko edit karna behtar hai; nayi row dalen to bhi total sahi ginta hai.
+- Kai colours wale product (Turkish Lawn, Hijab and Niqab) mein har colour ki apni row, colour ka naam website jaisa (capital/small ka farq nahi parta).
+- Setup.sql dobara run karne se purane stock numbers badalte nahi.
+
 ## Zaroori baatein
 - Agar stock service reach na ho to order phir bhi WhatsApp par chala jata hai (sale zaya nahi hoti), lekin us waqt stock kam / order save nahi hota. `/api/health` se check karein.
 - Aakhri piece do customers ek saath order karein to sirf pehle ka order jata hai.

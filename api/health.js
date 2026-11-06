@@ -28,6 +28,11 @@ export default async function handler(req, res) {
       report.stockRows = count.headers.get("content-range") || null;
     }
     report.ok = stock.ok && orders.ok && fn.ok;
+    if (report.ok && /\/0$/.test(report.stockRows || "")) {
+      report.ok = false;
+      report.problem = "The stock table is empty (or this key cannot read it). Run supabase/setup.sql again and make sure SUPABASE_SERVICE_ROLE_KEY is the secret / service_role key, not the publishable / anon key.";
+      return res.status(200).json(report);
+    }
     if (!report.ok) report.problem = "Open supabase/setup.sql, paste the whole file in Supabase > SQL Editor and press Run again. If a table says 401/403 the key is wrong (use the secret / service_role key).";
   } catch (error) {
     report.problem = `Could not reach Supabase: ${error?.message || error}. Check SUPABASE_URL (it looks like https://xxxx.supabase.co).`;

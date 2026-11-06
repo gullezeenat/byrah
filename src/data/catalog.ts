@@ -1193,24 +1193,26 @@ export const stockKey = (product: Product, color: string) => (product.colorStock
 
 /** Replaces the built-in stock numbers with the live numbers from the stock database. */
 export const applyRemoteStock = (remote: Record<string, Record<string, number>>) => {
-  const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : undefined);
+  // The stock database is the single source of truth. If it answered with nothing at all
+  // (not set up / blocked) keep the built-in numbers instead of showing everything sold out.
+  if (!remote || !Object.keys(remote).length) return;
+  const clean = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0);
+  const norm = (name: string) => name.trim().toLowerCase();
   products.forEach((item) => {
-    const live = remote[item.id];
-    if (!live) return;
+    if (item.bundleOf) return;
+    const live = remote[item.id] || {}; // no row in the database = out of stock
     if (item.colorStock) {
-      const next = { ...item.colorStock };
-      const byLowerName = new Map(Object.entries(live).map(([name, qty]) => [name.trim().toLowerCase(), qty]));
-      Object.keys(next).forEach((name) => {
-        const qty = num(live[name] ?? byLowerName.get(name.trim().toLowerCase()));
-        if (qty !== undefined) next[name] = qty;
+      const next: Record<string, number> = {};
+      Object.keys(item.colorStock).forEach((name) => {
+        next[name] = Object.entries(live)
+          .filter(([key]) => norm(key) === norm(name))
+          .reduce((sum, [, qty]) => sum + clean(qty), 0);
       });
       item.colorStock = next;
       item.stock = Object.values(next).reduce((sum, value) => sum + value, 0);
     } else {
-      // Single-colour piece: the row normally has an empty colour; if the row was added by hand
-      // with a colour name, use that number instead of ignoring it.
-      const qty = num(live[""]) ?? num(Object.values(live)[0]);
-      if (qty !== undefined) item.stock = qty;
+      // Single-colour piece: every row of this product counts, whatever its colour label says.
+      item.stock = Object.values(live).reduce((sum, qty) => sum + clean(qty), 0);
     }
   });
   products
