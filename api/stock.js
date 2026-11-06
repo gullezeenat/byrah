@@ -1,4 +1,4 @@
-import { supabaseConfig } from "./_supabase.js";
+import { supabaseConfig } from "./supabase.js";
 
 // GET /api/stock -> { "<productId>": { "<colour or ''>": quantity } }
 export default async function handler(req, res) {

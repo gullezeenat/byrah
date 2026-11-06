@@ -1,4 +1,4 @@
-import { supabaseConfig } from "./_supabase.js";
+import { supabaseConfig } from "./supabase.js";
 
 // POST /api/order  { items: [{ productId, color, quantity }] }
 // Takes the pieces out of stock in one safe step. 409 = not enough stock.
