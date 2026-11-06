@@ -120,12 +120,17 @@ function App() {
     "rah-preferences",
     { sort: "Featured" },
   );
-  const [, setStockVersion] = useState(0);
+  const [stockVersion, setStockVersion] = useState(0);
+  const stockLoaded = useRef(false);
   const refreshStock = useCallback(async () => {
     try {
-      const response = await fetch("/api/stock", { cache: "no-store" });
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 6000);
+      const response = await fetch(`/api/stock?t=${Date.now()}`, { cache: "no-store", signal: controller.signal });
+      window.clearTimeout(timer);
       if (!response.ok) return;
       applyRemoteStock(await response.json());
+      stockLoaded.current = true;
       setStockVersion((value) => value + 1);
     } catch {
       /* no stock database (for example while developing locally): keep the built-in numbers */
@@ -133,9 +138,16 @@ function App() {
   }, []);
   useEffect(() => {
     refreshStock();
+    // Keep the "Out of stock" labels live: refresh on return to the tab and every 20 seconds.
     const onVisible = () => { if (document.visibilityState === "visible") refreshStock(); };
+    const timer = window.setInterval(onVisible, 20000);
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, [refreshStock]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -204,7 +216,27 @@ function App() {
     toastTimer.current = window.setTimeout(() => setToast(""), 3000);
   };
 
-  const addToCart = (
+  // Sold-out pieces leave the bag as soon as the live stock says 0.
+  useEffect(() => {
+    if (!stockLoaded.current) return;
+    const stale = cart.some((line) => {
+      const product = products.find((item) => item.id === line.productId);
+      return !product || getStock(product, line.color) < line.quantity;
+    });
+    if (!stale) return;
+    setCart((current) =>
+      current.flatMap((line) => {
+        const product = products.find((item) => item.id === line.productId);
+        const available = product ? getStock(product, line.color) : 0;
+        if (available < 1) return [];
+        return [{ ...line, quantity: Math.min(line.quantity, available) }];
+      }),
+    );
+    notify("Some pieces in your bag just sold out and were updated.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockVersion]);
+
+  const addToCart = async (
     productId: string,
     color = "One size",
     size = "",
@@ -212,6 +244,7 @@ function App() {
   ) => {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
+    await refreshStock(); // always check the live stock first
     const available = getStock(product, color);
     if (available < 1) {
       notify("This piece is out of stock.");
@@ -234,7 +267,8 @@ function App() {
     notify(`${product.name} added to your bag.`);
   };
 
-  const addManyToCart = (picks: { productId: string; color: string }[], label: string, bundlePrice?: number) => {
+  const addManyToCart = async (picks: { productId: string; color: string }[], label: string, bundlePrice?: number) => {
+    await refreshStock();
     const unitPrice = bundlePrice ? bundlePrice / picks.length : undefined;
     setCart((current) => {
       let next = [...current];

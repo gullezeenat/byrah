@@ -1193,18 +1193,24 @@ export const stockKey = (product: Product, color: string) => (product.colorStock
 
 /** Replaces the built-in stock numbers with the live numbers from the stock database. */
 export const applyRemoteStock = (remote: Record<string, Record<string, number>>) => {
+  const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : undefined);
   products.forEach((item) => {
     const live = remote[item.id];
     if (!live) return;
     if (item.colorStock) {
       const next = { ...item.colorStock };
+      const byLowerName = new Map(Object.entries(live).map(([name, qty]) => [name.trim().toLowerCase(), qty]));
       Object.keys(next).forEach((name) => {
-        if (typeof live[name] === "number") next[name] = live[name];
+        const qty = num(live[name] ?? byLowerName.get(name.trim().toLowerCase()));
+        if (qty !== undefined) next[name] = qty;
       });
       item.colorStock = next;
       item.stock = Object.values(next).reduce((sum, value) => sum + value, 0);
-    } else if (typeof live[""] === "number") {
-      item.stock = live[""];
+    } else {
+      // Single-colour piece: the row normally has an empty colour; if the row was added by hand
+      // with a colour name, use that number instead of ignoring it.
+      const qty = num(live[""]) ?? num(Object.values(live)[0]);
+      if (qty !== undefined) item.stock = qty;
     }
   });
   products
