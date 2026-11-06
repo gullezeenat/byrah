@@ -1,5 +1,8 @@
--- RAH. stock database. Paste this whole file into Supabase > SQL Editor > Run (once).
+-- RAH. stock + orders database.
+-- Paste this WHOLE file into Supabase > SQL Editor > Run.
+-- It is safe to run again at any time: it never erases existing stock numbers or orders.
 
+-- 1) Stock: one row per product (and per colour for multi-colour products).
 create table if not exists public.stock (
   product_id text not null,
   color      text not null default '',   -- '' for products that have a single colour
@@ -8,23 +11,62 @@ create table if not exists public.stock (
   primary key (product_id, color)
 );
 
--- Nobody can read or write the table directly from the browser; only the website's server functions can.
-alter table public.stock enable row level security;
+-- 2) Orders: every order placed on the website is saved here (and also sent to WhatsApp).
+create table if not exists public.orders (
+  id          bigint generated always as identity primary key,
+  reference   text not null unique,          -- the RAH-XXXXX reference the customer sees
+  created_at  timestamptz not null default now(),
+  status      text not null default 'new',   -- you can change this: new / confirmed / delivered / cancelled
+  name        text not null default '',
+  phone       text not null default '',
+  email       text not null default '',
+  address     text not null default '',
+  city        text not null default '',
+  notes       text not null default '',
+  items       jsonb not null default '[]'::jsonb,
+  subtotal    integer not null default 0,
+  delivery    integer not null default 0,
+  total       integer not null default 0
+);
 
--- Takes pieces out of stock in one safe step (two customers cannot take the same last piece).
-create or replace function public.reserve_stock(items jsonb)
+-- Nobody can read or write these tables from the browser; only the website's server functions can.
+alter table public.stock  enable row level security;
+alter table public.orders enable row level security;
+
+-- 3) The order step: checks stock, takes the pieces out and saves the order, all in one safe step
+--    (two customers cannot take the same last piece). SECURITY DEFINER = it always has the
+--    rights it needs, whichever key the website uses.
+drop function if exists public.reserve_stock(jsonb);
+
+create or replace function public.place_order(items jsonb, details jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   it jsonb;
   cur integer;
+  ref text := nullif(details->>'reference', '');
   short jsonb := '[]'::jsonb;
+  untracked jsonb := '[]'::jsonb;
 begin
+  -- Nothing to do (used by /api/health to test the connection without changing anything).
+  if jsonb_array_length(items) = 0 then
+    return jsonb_build_object('ok', true, 'empty', true);
+  end if;
+
+  -- Same order sent twice (double tap): do not take the stock twice.
+  if ref is not null and exists (select 1 from public.orders where reference = ref) then
+    return jsonb_build_object('ok', true, 'duplicate', true);
+  end if;
+
   for it in select * from jsonb_array_elements(items) loop
     select quantity into cur from public.stock
       where product_id = it->>'productId' and color = it->>'color' for update;
-    if cur is not null and cur < (it->>'quantity')::int then
+    if not found then
+      untracked := untracked || jsonb_build_array(jsonb_build_object('productId', it->>'productId', 'color', it->>'color'));
+    elsif cur < (it->>'quantity')::int then
       short := short || jsonb_build_array(jsonb_build_object(
         'productId', it->>'productId', 'color', it->>'color', 'available', cur));
     end if;
@@ -39,9 +81,26 @@ begin
       set quantity = quantity - (it->>'quantity')::int, updated_at = now()
       where product_id = it->>'productId' and color = it->>'color';
   end loop;
-  return jsonb_build_object('ok', true);
+
+  if ref is not null then
+    insert into public.orders (reference, name, phone, email, address, city, notes, items, subtotal, delivery, total)
+    values (
+      ref,
+      coalesce(details->>'name', ''), coalesce(details->>'phone', ''), coalesce(details->>'email', ''),
+      coalesce(details->>'address', ''), coalesce(details->>'city', ''), coalesce(details->>'notes', ''),
+      coalesce(details->'lines', '[]'::jsonb),
+      coalesce((details->>'subtotal')::int, 0), coalesce((details->>'delivery')::int, 0), coalesce((details->>'total')::int, 0)
+    )
+    on conflict (reference) do nothing;
+  end if;
+
+  return jsonb_build_object('ok', true, 'untracked', untracked);
 end;
 $$;
+
+-- Only the website's server key may call it (not the public browser keys).
+revoke all on function public.place_order(jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.place_order(jsonb, jsonb) to service_role;
 
 -- Starting stock (same numbers as the website had in code).
 insert into public.stock (product_id, color, quantity) values

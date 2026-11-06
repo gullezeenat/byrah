@@ -2093,14 +2093,31 @@ function CheckoutPage({
     // service cannot be reached the order still goes to WhatsApp so a sale is never lost.
     setSubmitting(true);
     setStockError("");
+    const reference = `RAH-${Date.now().toString(36).slice(-5).toUpperCase()}${Math.floor(Math.random() * 36).toString(36).toUpperCase()}`;
     try {
       const response = await fetch("/api/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: lines.map((line) => ({ productId: line.productId, color: stockKey(line.product, line.color), quantity: line.quantity })),
+          reference,
+          customer: {
+            name: values.name.trim(), phone: values.phone.trim(), email: values.email.trim(),
+            address: values.address.trim(), city: values.city.trim(), notes: values.notes.trim(),
+          },
+          items: lines.map((line) => ({
+            productId: line.productId,
+            color: stockKey(line.product, line.color),
+            quantity: line.quantity,
+            name: line.product.name,
+            label: [line.color && line.color !== "One size" ? line.color : "", line.size || ""].filter(Boolean).join(" / "),
+            price: linePrice(line),
+          })),
+          subtotal,
+          delivery: shipping,
+          total,
         }),
       });
+      if (!response.ok && response.status !== 409) console.warn("Stock service problem (order continues):", response.status);
       if (response.status === 409) {
         const data = (await response.json()) as { shortages?: { productId: string; color: string; available: number }[] };
         const notes = (data.shortages || []).map((item) => {
@@ -2116,7 +2133,6 @@ function CheckoutPage({
     } catch {
       /* stock service unreachable: continue */
     }
-    const reference = `RAH-${Date.now().toString(36).slice(-5).toUpperCase()}`;
     const url = buildWhatsAppOrderUrl(reference, values, lines, subtotal, shipping, total);
     setConfirmation(reference);
     setWhatsAppUrl(url);
